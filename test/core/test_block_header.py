@@ -45,13 +45,11 @@ class TestBlockHeader(unittest.TestCase):
         # 2. 断言 (Assert)
         self.assertIsInstance(block_hash, bytes, "Hash should be a bytes object")
         self.assertEqual(len(block_hash), 32, "Hash should be 32 bytes long (SHA256)")
-
     def test_deserialization_error_on_wrong_length(self):
         """
         测试当输入数据长度不正确时，反序列化应抛出ValueError。
         """
         invalid_data = b'\x00' * 79  # 准备一段长度错误的数据
-
         # 使用assertRaises作为上下文管理器，来断言特定的异常是否被抛出
         with self.assertRaises(ValueError):
             BlockHeader.deserialize(invalid_data)
