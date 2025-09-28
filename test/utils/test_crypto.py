@@ -1,6 +1,6 @@
 import unittest
 import ecdsa
-from utils import *
+from utils.crypto import *
 
 class TestCrypto(unittest.TestCase):
     """
