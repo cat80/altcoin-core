@@ -61,7 +61,7 @@ class TestTransaction(unittest.TestCase):
                 TxOut(value=100, locking_script=self.locking_script1),
                 TxOut(value=200, locking_script=self.locking_script2)
             ],
-            locktime=0,
+            lock_time=0,
             op_return_data=b'AltCoin test data'
         )
 
@@ -78,7 +78,7 @@ class TestTransaction(unittest.TestCase):
         """
         # 1. 构造一个前置交易(tx0)，它创建了一个归属于 wallet1 的UTXO
         tx0_out = TxOut(value=50000, locking_script=self.locking_script1)
-        tx0 = Transaction(version=1, tx_ins=[], tx_outs=[tx0_out], locktime=0)
+        tx0 = Transaction(version=1, tx_ins=[], tx_outs=[tx0_out], lock_time=0)
         tx0_hash = tx0.hash()  # 计算 tx0 的哈希作为 TxID
 
         # 模拟一个UTXO池，其中包含了我们刚刚创建的UTXO
@@ -93,7 +93,7 @@ class TestTransaction(unittest.TestCase):
             version=1,
             tx_ins=[tx1_in_unsigned],
             tx_outs=[TxOut(value=49000, locking_script=self.locking_script2)],  # 转账给wallet2，留下1000手续费
-            locktime=0
+            lock_time=0
         )
 
         # c. 生成用于签名的哈希 (这是最关键的一步)
@@ -111,7 +111,7 @@ class TestTransaction(unittest.TestCase):
             version=1,
             tx_ins=[TxIn(tx1_in_unsigned.prev_tx_hash, tx1_in_unsigned.prev_tx_out_index, unlocking_script)],
             tx_outs=tx1_template.tx_outs,
-            locktime=0
+            lock_time=0
         )
 
         # 4. 验证这笔交易的签名
@@ -124,7 +124,7 @@ class TestTransaction(unittest.TestCase):
             version=1,
             tx_ins=[TxIn(tx1_in_unsigned.prev_tx_hash, tx1_in_unsigned.prev_tx_out_index, wrong_unlocking_script)],
             tx_outs=tx1_template.tx_outs,
-            locktime=0
+            lock_time=0
         )
         self.assertFalse(bad_tx1.verify_signature(), "使用错误密钥的签名应该验证失败")
 

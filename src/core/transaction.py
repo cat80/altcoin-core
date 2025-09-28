@@ -73,7 +73,7 @@ class Transaction:
     version: int
     tx_ins: List[TxIn]
     tx_outs: List[TxOut]
-    locktime: int
+    lock_time: int
     op_return_data: bytes = field(default=None)
 
     def hash(self) -> bytes:
@@ -100,7 +100,7 @@ class Transaction:
         for tx_out in self.tx_outs:
             s += tx_out.serialize()
 
-        s += struct.pack('<I', self.locktime)
+        s += struct.pack('<I', self.lock_time)
 
         if self.op_return_data:
             s += struct.pack('<I', len(self.op_return_data))

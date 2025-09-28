@@ -29,7 +29,7 @@ class TestBlock(unittest.TestCase):
             version=1,
             tx_ins=[txin1],
             tx_outs=[txout1],
-            locktime=0
+            lock_time=0
         )
 
         # 创建coinbase交易
@@ -42,7 +42,7 @@ class TestBlock(unittest.TestCase):
             version=1,
             tx_ins=[coinbase_txin],
             tx_outs=[coinbase_txout],
-            locktime=0
+            lock_time=0
         )
 
     def test_create_new_block(self):

@@ -7,9 +7,7 @@ import time
 from .block_header import BlockHeader
 from .transaction import Transaction,TxIn,TxOut
 from utils import MerkleTree,hash_data
-
-# 定义一些常量
-MAGIC_BYTES = b'\xab\xcd\xcd\xef' # 定义区块的头
+from config import MAGIC_BYTES
 
 @dataclass
 class Block:

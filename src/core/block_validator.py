@@ -1,0 +1,129 @@
+"""
+block_validator.py
+包含所有关于区块和交易的共识验证规则。
+这是一个无状态的模块，所有函数都应该是纯函数或静态方法，
+不依赖于任何类实例的状态。
+"""
+from .block import Block
+from .chain_state import ChainState
+from .block_index import BlockIndex
+from .block_header import BlockHeader
+from utils.crypto import hash_data
+from config import INITIAL_BLOCK_REWARD
+
+class BlockValidator:
+    """
+    一个封装所有共识验证逻辑的命名空间。
+    所有方法都设为静态方法，因为它不管理任何状态。
+    """
+    
+    @staticmethod
+    def check_block_header(header: BlockHeader) -> bool:
+        """
+        验证区块头自身的合法性 (PoW)。
+        """
+        target = BlockValidator.bits_to_target(header.bits)
+        block_hash = header.hash()
+        return int.from_bytes(block_hash, 'little') < target
+
+    @staticmethod
+    def check_merkle_root(block: Block) -> bool:
+        """
+        验证区块头中的默克尔根是否与交易列表匹配。
+        """
+        from utils import MerkleTree
+        tx_hashes = [tx.hash() for tx in block.transactions]
+        merkle_root = MerkleTree(tx_hashes).root
+        return merkle_root == block.header.merkle_root
+
+    @staticmethod
+    def check_block_transactions(block: Block, chain_state: ChainState, block_height: int) -> bool:
+        """
+        验证区块内所有交易的合法性。
+        这是最复杂和最关键的验证部分。
+        """
+        if not block.transactions:
+            return False
+
+        # 1. 检查第一笔交易必须是Coinbase
+        if not block.transactions[0].is_coinbase():
+            return False
+            
+        # 2. 检查除了第一笔之外没有其他Coinbase
+        for tx in block.transactions[1:]:
+            if tx.is_coinbase():
+                return False
+
+        total_fees = 0
+        # 3. 逐个验证所有交易
+        for tx in block.transactions:
+            if not tx.is_coinbase():
+                # 3.1 验证非Coinbase交易
+                input_sum = 0
+                for tx_in in tx.tx_ins:
+                    utxo = chain_state.get_utxo(tx_in)
+                    if utxo is None:
+                        # 输入的UTXO不存在
+                        return False
+                    input_sum += utxo.value
+                
+                output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
+                
+                if input_sum < output_sum:
+                    # 输入总额必须大于等于输出总额
+                    return False
+                
+                total_fees += (input_sum - output_sum)
+                
+                # 3.2 验证交易签名
+                if not tx.verify_signature():
+                    return False
+            else:
+                # 3.3 验证Coinbase交易
+                # 检查Coinbase的输出总额是否超过了区块奖励+交易费
+                block_reward = BlockValidator.get_block_reward(block_height)
+                coinbase_output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
+                if coinbase_output_sum > block_reward + total_fees:
+                    return False
+        
+        return True
+
+    @staticmethod
+    def check_block(block: Block, chain_state: ChainState, block_index: BlockIndex, prev_header_info: dict) -> bool:
+        """
+        对一个新区块进行完整的、有状态的验证。
+        这是在尝试将区块连接到主链之前调用的总入口。
+        """
+        # 1. 验证默克尔根
+        if not BlockValidator.check_merkle_root(block):
+            print("Validation failed: Merkle root mismatch.")
+            return False
+            
+        # 2. 验证所有交易
+        block_height = prev_header_info['height'] + 1
+        if not BlockValidator.check_block_transactions(block, chain_state, block_height):
+            print("Validation failed: Transaction checks failed.")
+            return False
+            
+        # 可以在这里添加更多检查，例如时间戳是否合理等
+        
+        return True
+
+    @staticmethod
+    def bits_to_target(bits: int) -> int:
+        """将区块头中的bits字段转换为一个大的整数目标值。"""
+        exponent = bits >> 24
+        mantissa = bits & 0x007fffff
+        target = mantissa * (2 ** (8 * (exponent - 3)))
+        return target
+
+    @staticmethod
+    def get_block_reward(height: int) -> int:
+        """
+        根据区块高度计算区块奖励。
+        (这是一个简化的版本，实际中每210,000个区块减半)
+        """
+        halvings = height // 210000
+        if halvings >= 64:
+            return 0
+        return INITIAL_BLOCK_REWARD >> halvings
