@@ -25,6 +25,14 @@ class TxIn:
         return fixed_part + len_part + self.unlocking_script
 
     @classmethod
+    def create_coinbase_txin(cls,unlocking_script:bytes):
+        """
+            根据解锁脚本创建一个coinbase in
+        :param unlocking_script:
+        :return:
+        """
+        return cls(prev_tx_out_index=0xffffffff,prev_tx_hash=b'\x00'*32,unlocking_script=unlocking_script)
+    @classmethod
     def deserialize(cls, stream: io.BytesIO) -> 'TxIn':
         """从字节流中反序列化 TxIn"""
         prev_tx_hash = stream.read(32)
@@ -97,13 +105,16 @@ class Transaction:
         if self.op_return_data:
             s += struct.pack('<I', len(self.op_return_data))
             s += self.op_return_data
+        else:
+            # 修正，如果字段为空则记录为长度为零
+            s += struct.pack('<I', 0)
 
         return s
 
     @classmethod
-    def deserialize(cls, data: bytes) -> 'Transaction':
+    def deserialize(cls, stream: io.BytesIO) -> 'Transaction':
         """从二进制字节流中反序列化出交易对象。"""
-        stream = io.BytesIO(data)
+
         version, = struct.unpack('<I', stream.read(4))
         tx_in_count, = struct.unpack('<I', stream.read(4))
         tx_ins = [TxIn.deserialize(stream) for _ in range(tx_in_count)]
@@ -113,23 +124,37 @@ class Transaction:
         locktime, = struct.unpack('<I', stream.read(4))
         op_return_data = None
         # 检查流中是否还有剩余数据（即op_return_data）
-        if stream.tell() < len(data):
-            data_len, = struct.unpack('<I', stream.read(4))
+        data_len, = struct.unpack('<I', stream.read(4))
+        if data_len:
             op_return_data = stream.read(data_len)
 
         return cls(version, tx_ins, tx_outs, locktime, op_return_data)
 
+    def is_coinbase(self) -> bool:
+        """
+        判断这笔交易是否为Coinbase交易。
+        """
+        return (len(self.tx_ins) == 1 and
+                self.tx_ins[0].prev_tx_hash == b'\x00' * 32 and
+                self.tx_ins[0].prev_tx_out_index == 0xFFFFFFFF)
+
+    @classmethod
+    def create_coinbase_transaction(self,tx_outs, unlocking_script=None):
+        tx_inds = TxIn(prev_tx_hash=b'\x00' * 32,prev_tx_out_index= 0xFFFFFFFF)
 
     def verify_signature(self) -> bool:
         """
-        验证指定输入的签名是否有效。
-        这是一个相对“无状态”的方法，因为它需要你提供它所花费的UTXO。
+        验证当前交易的签名是否有效。
         :return: 如果当前交易的签名有效，返回True。
         """
+        # 如果是coinbase认定签名有效
+        if self.is_coinbase():
+            return True
+
         hash_for_signing = self.serialize(for_signing=True)
 
         for input_index,tx_in in enumerate(self.tx_ins) :
-            # a. 从解锁脚本中解析公钥和签名
+            # 从解锁脚本中解析公钥和签名
             if len(tx_in.unlocking_script) != 128:
                 raise Exception(f'tx_index:{input_index},unlocking script len not equal 128,actual:{len(tx_in.unlocking_script)} ')
             signature = tx_in.unlocking_script[:64]

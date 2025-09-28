@@ -66,7 +66,8 @@ class TestTransaction(unittest.TestCase):
         )
 
         serialized = original_tx.serialize()
-        deserialized = Transaction.deserialize(serialized)
+        steam =  io.BytesIO(serialized)
+        deserialized = Transaction.deserialize(steam)
 
         self.assertEqual(original_tx, deserialized, "完整Transaction的序列化往返测试失败")
 

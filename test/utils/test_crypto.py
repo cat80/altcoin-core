@@ -130,6 +130,11 @@ class TestCrypto(unittest.TestCase):
             self.assertTrue(address_public_key_is_match(address,public_key))
             self.assertFalse(address_public_key_is_match(address+'a', public_key))
 
+    def test_os(self):
+        import sys
+        import platform
+        print('python version is:',sys.version)
+        print('platform version is:',platform.system())
     def test_combineation(self):
         """
             综合性做一些测试

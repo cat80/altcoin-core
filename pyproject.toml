@@ -1,0 +1,6 @@
+[project]
+name = "altcoin_core"
+version = "0.0.1"
+
+[tool.setuptools.packages.find]
+where = ["src"]

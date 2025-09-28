@@ -1,3 +1,4 @@
+import io
 import struct
 import time
 import hashlib
@@ -33,12 +34,10 @@ class BlockHeader:
         )
 
     @classmethod
-    def deserialize(cls, data: bytes) -> 'BlockHeader':
+    def deserialize(cls, stream: io.BytesIO) -> 'BlockHeader':
         """从80字节的二进制数据中反序列化出区块头对象。"""
-        if len(data) != 80:
-            raise ValueError("Block header data must be 80 bytes long")
 
-        version, prev_block_hash, merkle_root, timestamp, bits, nonce = struct.unpack(cls.FORMAT, data)
+        version, prev_block_hash, merkle_root, timestamp, bits, nonce = struct.unpack(cls.FORMAT, stream.read(80))
         return cls(version, prev_block_hash, merkle_root, timestamp, bits, nonce)
 
     def hash(self) -> bytes:

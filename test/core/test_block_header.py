@@ -1,3 +1,4 @@
+import io
 import unittest
 import time
 import hashlib
@@ -28,7 +29,8 @@ class TestBlockHeader(unittest.TestCase):
         """
         # 1. 操作 (Act) - 执行序列化和反序列化
         serialized_data = self.sample_header.serialize()
-        deserialized_header = BlockHeader.deserialize(serialized_data)
+        stream = io.BytesIO(serialized_data)
+        deserialized_header = BlockHeader.deserialize(stream)
 
         # 2. 断言 (Assert) - 验证结果是否符合预期
         self.assertEqual(len(serialized_data), 80, "Serialized header should be 80 bytes")
@@ -51,7 +53,8 @@ class TestBlockHeader(unittest.TestCase):
         """
         invalid_data = b'\x00' * 79  # 准备一段长度错误的数据
         # 使用assertRaises作为上下文管理器，来断言特定的异常是否被抛出
-        with self.assertRaises(ValueError):
+        invalid_data = io.BytesIO(invalid_data)
+        with self.assertRaises(Exception):
             BlockHeader.deserialize(invalid_data)
 
 

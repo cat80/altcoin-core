@@ -1,0 +1,23 @@
+# .coveragerc
+
+[run]
+# 核心配置：告诉 coverage.py 你要测量的源代码在哪个目录下
+source = src
+
+[report]
+# 在报告中显示缺失的代码行号
+show_missing = True
+
+# 忽略报告中100%覆盖的文件，让你专注于未覆盖的代码
+skip_covered = True
+
+# 排除不需要测量的文件或目录
+omit =
+    */__init__.py
+    */tests/*
+    */migrations/*
+    */venv/*
+
+[html]
+# 生成HTML报告的存放目录
+directory = htmlcov
