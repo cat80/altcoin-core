@@ -20,16 +20,18 @@ class BlockIndex:
     管理区块头索引。
     通过 SQLAlchemy ORM 与数据库交互。
     """
-    def __init__(self,db:SQLAlchemyWrapper):
+    sqldb :SQLAlchemyWrapper
+
+    def __init__(self, sqldb :SQLAlchemyWrapper):
         # 不再需要直接管理数据库连接，
-        self.db = db
+        self.sqldb = sqldb
         pass
 
     def add_header(self, header: BlockHeader, height: int, total_work: float, file_index: int, file_offset: int):
         """
         添加一个新的区块头到索引中。
         """
-        with self.db.get_session() as session:
+        with self.sqldb.get_session() as session:
             block_hash = header.hash()
             header_entry = BlockHeaderModel(
                 block_hash=block_hash,
@@ -51,15 +53,24 @@ class BlockIndex:
         """
         根据哈希获取区块头的完整信息 (以dict形式)。
         """
-        with self.db.get_session() as session:
+        with self.sqldb.get_session() as session:
             header_model = session.query(BlockHeaderModel).filter_by(block_hash=block_hash).first()
             return header_model.to_dict() if header_model else None
 
+    def get_genesis_block(self) -> Optional[dict]:
+        """
+        获取创世区块（高度为0的区块）的信息。
+        """
+        with self.sqldb.get_session() as session:
+            genesis_model = session.query(BlockHeaderModel).filter_by(height=0).first()
+            return genesis_model.to_dict() if genesis_model else None
+
+    
     def get_tip(self) -> Optional[dict]:
         """
         获取当前已知拥有最大 total_work 的区块头信息，即主链的顶端。
         """
-        with self.db.get_session() as session:
+        with self.sqldb.get_session() as session:
             tip_model = session.query(BlockHeaderModel).order_by(BlockHeaderModel.total_work.desc(), BlockHeaderModel.height.desc()).first()
             return tip_model.to_dict() if tip_model else None
 

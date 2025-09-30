@@ -5,6 +5,7 @@ blockchain.py
 等组件，共同处理新区块的接收、验证、存储和链重组。
 """
 import os
+import time
 from typing import Optional, List, Tuple
 
 from .block import Block, BlockHeader
@@ -13,21 +14,46 @@ from .block_index import BlockIndex
 from .chain_state import ChainState
 from .block_validator import BlockValidator
 from .block_storage import BlockStorage
-from storage import SQLAlchemyWrapper
+from utils import log
+
 class Blockchain:
     """
     顶层的区块链管理类。
     """
-    def __init__(self, data_dir: str):
-        self.data_dir = data_dir
-        
-        # 初始化各个组件
-        self.block_storage = BlockStorage(os.path.join(data_dir, 'blocks'))
-        self.sqldb = SQLAlchemyWrapper(os.path.join(data_dir,'index.db'))
-        self.sqldb.create_all_tables()
-        self.block_index = BlockIndex(self.sqldb) # BlockIndex现在是无状态的
-        self.chain_state = ChainState(os.path.join(data_dir, 'utxo'))
-        
+    block_storage :BlockStorage
+    block_index :BlockIndex
+    chain_state:ChainState
+
+    @classmethod
+    def new_from_data_dir(cls,data_dir:str):
+        """
+            根据数据路径自动初始化相关对象，该方法主要用来创建单元测试对象。生产环境请调用构造方法注入需要状态管理的对象。
+        :param data_dir:
+        :return:
+        """
+        from storage import SQLAlchemyWrapper,RocksDBWrapper
+        os.makedirs(data_dir,exist_ok=True)
+        sqldb = SQLAlchemyWrapper(os.path.join(data_dir,'index.db'))
+        sqldb.create_all_tables()
+        rocks_db = RocksDBWrapper(os.path.join(data_dir,'utxo'))
+        chainState = ChainState(rocks_db)
+        blockStorage = BlockStorage(os.path.join(data_dir,'block'))
+        blockIndex = BlockIndex(sqldb=sqldb)
+        return cls(
+            block_index=blockIndex,
+            block_storage=blockStorage,
+            chain_state=chainState
+        )
+    def __init__(self,block_storage :BlockStorage,block_index :BlockIndex,chain_state:ChainState):
+        """
+            初始化状态。使用依赖注入，block本身不创建需要依赖外部的对象
+        :param block_storage:
+        :param block_index:
+        :param chain_state:
+        """
+        self.block_storage =block_storage
+        self.block_index = block_index
+        self.chain_state = chain_state
         # 加载或创建创世区块
         self._init_genesis_block()
 
@@ -37,8 +63,8 @@ class Blockchain:
         """
         if self.block_index.get_tip() is None:
             # 创世区块定义
-            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), 1231006505, 486604799, 2083236893)
-            coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(b'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks')], [TxOut(50*100000000, b'')], 0)
+            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), int(time.time()), 0x200fffff, 2083236893)
+            coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(b'The Times 03/Jan/2009 Chancellor on brink of second bailout for banks')], [TxOut(50*100000000, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
             genesis_block = Block(genesis_header, [coinbase_tx])
 
             # 验证并存储创世区块
@@ -58,7 +84,7 @@ class Blockchain:
         
         # 1. 初步验证 (无状态，快速失败)
         if not BlockValidator.check_block_header(block.header):
-            print(f"Block {block_hash.hex()} failed header validation (PoW).")
+            log.debug(f"Block {block_hash.hex()} failed header validation (PoW).")
             return False
             
         # 2. 检查父区块是否存在于索引中

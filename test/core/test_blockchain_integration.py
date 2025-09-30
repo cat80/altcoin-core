@@ -13,20 +13,19 @@ from core.block import Block
 from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
 from core.block_validator import BlockValidator
-
+import tempfile
+from config import config
 class TestBlockchainIntegration(unittest.TestCase):
-
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         """Set up a temporary directory for test data."""
-        self.test_dir = "test_temp_data"
-        if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
-        os.makedirs(self.test_dir)
-        self.blockchain = Blockchain(self.test_dir)
+        cls.temp_dir = tempfile.mkdtemp()
+        print(config.base_dir)
+        cls.blockchain = Blockchain.new_from_data_dir(config.base_dir)
 
     def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
         """Clean up the temporary directory."""
-        self.blockchain.close()
         # if os.path.exists(self.test_dir):
         #     shutil.rmtree(self.test_dir)
 
@@ -35,10 +34,10 @@ class TestBlockchainIntegration(unittest.TestCase):
         Verify that the blockchain initializes with a valid genesis block.
         """
         print("\n--- Running test_01_genesis_block_creation ---")
-        tip = self.blockchain.get_best_tip()
+        tip = self.blockchain.block_index.get_genesis_block()
         self.assertIsNotNone(tip)
-        self.assertEqual(tip['height'], 0)
-        
+        self.assertEqual( tip['height'], 0)
+
         # Verify the genesis coinbase UTXO exists
         genesis_block_hash = tip['block_hash']
         genesis_block_info = self.blockchain.block_index.get_header_info(genesis_block_hash)
@@ -57,7 +56,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         block = Block.create_new(prev_block_hash, transactions, bits)
         target = BlockValidator.bits_to_target(bits)
         
-        while int.from_bytes(block.hash(), 'little') >= target:
+        while int.from_bytes(block.hash(), 'big') >= target:
             block.header = dataclasses.replace(block.header,nonce=block.header.nonce+1)
         return block
 
@@ -65,9 +64,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         """
         Test mining and adding a new, valid block to the chain.
         """
-        # TODO:挖矿得重新降低难度验证，需要再重新写测试用例
-        if True:
-            return
+
         print("\n--- Running test_02_add_valid_block ---")
         # 1. Get the previous block's info (genesis block)
         prev_tip = self.blockchain.get_best_tip()
@@ -89,7 +86,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         
         # 5. Verify the new state
         new_tip = self.blockchain.get_best_tip()
-        self.assertEqual(new_tip['height'], 1)
+        self.assertEqual(new_tip['height'], new_height)
         self.assertEqual(new_tip['block_hash'], new_block.hash())
         
         # 6. Verify the new coinbase UTXO exists
@@ -117,7 +114,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         
         # Verify the chain tip has not changed
         current_tip = self.blockchain.get_best_tip()
-        self.assertEqual(current_tip['height'], 0)
+        self.assertEqual(current_tip['height'], prev_tip['height'])
         self.assertEqual(current_tip['block_hash'], prev_block_hash)
         print("Blockchain correctly rejected block with bad PoW.")
 

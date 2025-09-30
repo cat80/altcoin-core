@@ -1,6 +1,6 @@
 import rocksdbpy as rocksdb
 from typing import List
-
+__global_rocksdb_dict = {}
 class RocksDBWrapper:
     """对RocksDB操作的简单封装，确保数据库连接的正确管理。"""
 

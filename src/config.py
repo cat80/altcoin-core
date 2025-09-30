@@ -15,6 +15,7 @@ class Config:
             self.parser.read(config_file)
         else:
             print(f'config file not exists,use temp config')
+        self.base_dir =self.parser.get('basic', 'base_dir', fallback='./data/')
         # 日志配置
         self.log_level = self.parser.get('logging', 'level', fallback='INFO')
         self.log_dir = self.parser.get('logging', 'directory', fallback='./logs/')

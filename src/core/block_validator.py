@@ -24,7 +24,7 @@ class BlockValidator:
         """
         target = BlockValidator.bits_to_target(header.bits)
         block_hash = header.hash()
-        return int.from_bytes(block_hash, 'little') < target
+        return int.from_bytes(block_hash, 'big') < target
 
     @staticmethod
     def check_merkle_root(block: Block) -> bool:
@@ -111,10 +111,18 @@ class BlockValidator:
 
     @staticmethod
     def bits_to_target(bits: int) -> int:
-        """将区块头中的bits字段转换为一个大的整数目标值。"""
+        """
+            将区块头中的bits字段转换为一个大的整数目标值。
+            cat80 add:
+                这里有一个核心的难度存储问题：bits是四个字节的整数，在block_header里面是小端存储的。成功序列化为整数后。
+                bits的大端如：0x1d00ffff,第一个字节代表左移的量这里是,后三个字节组成的大端整数，则代表基础的难难度。exponent-3个字节的原因是位置的原始数据已经包含了三个字节。可以简单的计算如果bits为0x200ffff,则意味着每16次就能挖到矿一次。难度调节也是根据前N个区块的时间差，与预期的时间比较，动态的上调或者下调难度
+        """
         exponent = bits >> 24
-        mantissa = bits & 0x007fffff
-        target = mantissa * (2 ** (8 * (exponent - 3)))
+        mantissa = bits & 0x00ffffff
+        # target = mantissa * (2 ** (8 * (exponent - 3)))
+        # 采用更为直观的位移法
+        move_left = (exponent-3)*8
+        target = mantissa << move_left
         return target
 
     @staticmethod

@@ -11,8 +11,8 @@ class ChainState:
     """
     管理UTXO集 (使用RocksDB)。
     """
-    def __init__(self, rocksdb_dir: str):
-        self.db =RocksDBWrapper(rocksdb_dir)
+    def __init__(self, rocksdb: RocksDBWrapper):
+        self.db =rocksdb
 
     def _get_utxo_key(self, tx_input: TxIn) -> bytes:
         """生成用于RocksDB的UTXO键。"""
