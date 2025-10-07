@@ -73,7 +73,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         # 2. Create a new coinbase transaction for the new block
         new_height = prev_tip['height'] + 1
         reward = BlockValidator.get_block_reward(new_height)
-        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(f"Block {new_height}".encode())], [TxOut(reward, b'some_locking_script')], 0)
+        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(f"Block {new_height}".encode())], [TxOut(reward, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
         
         # 3. Mine the new block
         print("Mining a new block...")

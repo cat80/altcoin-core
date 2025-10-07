@@ -7,6 +7,7 @@ class TestCrypto(unittest.TestCase):
     针对crypto.py工具集的单元测试套件。
     """
 
+
     def test_hash_data(self):
         """
         测试hash_data函数是否能正确生成确定性的32字节哈希。
@@ -135,6 +136,13 @@ class TestCrypto(unittest.TestCase):
         import platform
         print('python version is:',sys.version)
         print('platform version is:',platform.system())
+
+    def test_get_pars_and_address(self):
+        privek,pubk=generate_keypair()
+        addr = get_address_by_public_key(pubk)
+        print(addr)
+        print(f'bytes:[pk:{privek.to_string()},pubk:{privek.to_string()},addr:{privek.to_string()}],hdex:[pk:{privek.to_string().hex()},pubk:{pubk.to_string().hex()},addr:{addr.encode()}]')
+
     def test_combineation(self):
         """
             综合性做一些测试

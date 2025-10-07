@@ -35,7 +35,7 @@ class ChainState:
 
     def apply_block(self, block: 'Block'):
         """
-        核心功能: 应用一个区块的变更到UTXO集。
+        核心功能: 应用一个区块的变更到UTXO集。同时更新状态为主链状态
         - 删除所有被花费的UTXO。
         - 添加所有新产生的UTXO。
         这个操作是原子性的。

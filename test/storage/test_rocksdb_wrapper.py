@@ -66,6 +66,7 @@ class TestRocksDBWrapper(unittest.TestCase):
     def test_write_batch(self):
         """测试批量写入数据"""
         # 创建批处理对象
+
         batch = self.db.new_batch()
         
         # 添加多个键值对到批处理中
