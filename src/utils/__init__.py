@@ -8,6 +8,7 @@ from .merkle_tree import MerkleTree
 from .logger import setup_logger
 from .exceptions import *
 
+from .tools import  *
 # 1. 创建全局日志
 log = setup_logger()
 

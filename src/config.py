@@ -66,6 +66,16 @@ config = load_config()
 # 定义一些常量
 MAGIC_BYTES = b'\xab\xcd\xcd\xef' # 定义区块的头
 
-
 # 初始的代币奖励数量
-INITIAL_BLOCK_REWARD = 50 * 100_000_000 # 50个币，单位为聪
+INITIAL_BLOCK_REWARD = 10 * 100_000_000 # 10个奖励
+REWARD_CUTOFF_BLOCKS = 2100000 # 每210万个区块减半
+
+# 难度调整区块数，目前一分钟一个区块，每一周调整一次难度
+ADJUSTMENT_INTERVAL = 10080
+TARGET_TIMESPAN = 10080 * 60  # 一周的秒数
+INITIAL_BITS = 2083236893
+
+# 定义区块状态的常量
+BLOCK_STATUS_VALID = 1  # 表示区块头和内容都已完全验证
+BLOCK_STATUS_FORK = 0 # 表示区块为侧链
+BLOCK_STATUS_INVALID = -1 # 表示区块头和内容有为废除区域，一般重组失败后置为无效

@@ -82,17 +82,17 @@ class Blockchain:
         """
         block_hash = block.hash()
         
-        # 1. 初步验证 (无状态，快速失败)
+        # 1. 初步验证 (无状态，快速失败)，这里主要验证pow是否有效
         if not BlockValidator.check_block_header(block.header):
             log.debug(f"Block {block_hash.hex()} failed header validation (PoW).")
             return False
-            
+        # todo: 这里还需要验证coinbase交易的奖励是否合法，在utxo里面？还就是bits的难度计算
         # 2. 检查父区块是否存在于索引中
         prev_hash = block.header.prev_block_hash
         prev_header_info = self.block_index.get_header_info(prev_hash)
         
         if prev_header_info is None:
-            # 暂时不处理孤立节点的问题
+            # 暂时不处理孤立节点的问题，这里返回多个状态，让上一级事件处理方法处理
             print(f"Block {block_hash.hex()} is an orphan block, parent {prev_hash.hex()} not found.")
             return False
 
@@ -109,6 +109,11 @@ class Blockchain:
 
         # 6. 检查是否需要链重组
         current_tip = self.block_index.get_tip()
+
+        if current_tip is None or new_total_work > current_tip['total_work']:
+            # 新区块的总工作量更大，不需要重组
+            return True
+
         if current_tip['block_hash'] != block_hash:
             # 新区块的总工作量更大，需要重组
             print(f"Reorganization needed. New tip: {block_hash.hex()}")
@@ -129,6 +134,8 @@ class Blockchain:
         """处理链重组的复杂逻辑。"""
         # 这是一个复杂的过程，这里提供一个简化的逻辑框架
         # 1. 找到共同祖先
+
+        common_ancestor = self.block_index.find_common_ancestor(new_chain_tip_info['block_hash'])
         # 2. 回滚旧链的区块
         # 3. 应用新链的区块
         print("Chain reorganization is a complex feature and is not fully implemented in this scaffold.")

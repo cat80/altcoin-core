@@ -9,7 +9,7 @@ from .chain_state import ChainState
 from .block_index import BlockIndex
 from .block_header import BlockHeader
 from utils.crypto import hash_data
-from config import INITIAL_BLOCK_REWARD
+from config import INITIAL_BLOCK_REWARD,REWARD_CUTOFF_BLOCKS
 
 class BlockValidator:
     """
@@ -128,10 +128,8 @@ class BlockValidator:
     @staticmethod
     def get_block_reward(height: int) -> int:
         """
-        根据区块高度计算区块奖励。
-        (这是一个简化的版本，实际中每210,000个区块减半)
+            根据区块高度计算区块奖励。
         """
-        halvings = height // 210000
-        if halvings >= 64:
-            return 0
-        return INITIAL_BLOCK_REWARD >> halvings
+        halvings = height // REWARD_CUTOFF_BLOCKS
+        reward = INITIAL_BLOCK_REWARD >> halvings
+        return  reward if reward > 0 else 0
