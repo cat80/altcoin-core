@@ -123,8 +123,9 @@ class TestBlockIndex(unittest.TestCase):
         
         # 查找共同祖先（同一链上的两个区块）
         common_ancestor, old_chain, new_chain = self.block_index.find_common_ancestor(
-            self.block_header_1.hash(),  # 旧链tip
-            self.block_header_2.hash()   # 新链tip
+
+            self.block_header_2.hash(),  # 新链tip
+            self.block_header_1.hash()# 旧链tip
         )
         
         # 验证结果
@@ -153,8 +154,9 @@ class TestBlockIndex(unittest.TestCase):
         
         # 查找共同祖先
         common_ancestor, old_chain, new_chain = self.block_index.find_common_ancestor(
-            self.block_header_2.hash(),    # 旧链tip（主链）
-            fork_block_header.hash()       # 新链tip（分叉链）
+
+            fork_block_header.hash(),  # 新链tip（分叉链）
+            self.block_header_2.hash()    # 旧链tip（主链）
         )
         
         # 验证结果

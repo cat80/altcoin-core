@@ -47,6 +47,30 @@ class TestBlockHeader(unittest.TestCase):
         # 2. 断言 (Assert)
         self.assertIsInstance(block_hash, bytes, "Hash should be a bytes object")
         self.assertEqual(len(block_hash), 32, "Hash should be 32 bytes long (SHA256)")
+
+    def test_from_dict(self):
+        """
+        测试从字典创建BlockHeader实例。
+        """
+        header_data = {
+            'version': 2,
+            'prev_block_hash': b'\x11' * 32,
+            'merkle_root': b'\x22' * 32,
+            'timestamp': 1678886400,
+            'bits': 0x1e0fffff,
+            'nonce': 123456
+        }
+        
+        header = BlockHeader.from_dict(header_data)
+        
+        self.assertIsInstance(header, BlockHeader)
+        self.assertEqual(header.version, header_data['version'])
+        self.assertEqual(header.prev_block_hash, header_data['prev_block_hash'])
+        self.assertEqual(header.merkle_root, header_data['merkle_root'])
+        self.assertEqual(header.timestamp, header_data['timestamp'])
+        self.assertEqual(header.bits, header_data['bits'])
+        self.assertEqual(header.nonce, header_data['nonce'])
+
     def test_deserialization_error_on_wrong_length(self):
         """
         测试当输入数据长度不正确时，反序列化应抛出ValueError。

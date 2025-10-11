@@ -13,6 +13,7 @@ class BlockHeaderModel(Base):
     prev_block_hash = Column(LargeBinary(32), nullable=False, index=True)
     merkle_root = Column(LargeBinary(32), nullable=False)
     timestamp = Column(Integer, nullable=False)
+    version = Column(Integer, nullable=False,default=1),
     bits = Column(Integer, nullable=False)
     nonce = Column(Integer, nullable=False)
     height = Column(Integer, nullable=False, index=True)

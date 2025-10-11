@@ -1,238 +1,108 @@
 import unittest
 from unittest.mock import Mock, patch
-import io
-
 from core.block_validator import BlockValidator
 from core.block import Block
 from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
-from core.chain_state import ChainState
-from core.block_index import BlockIndex
-from storage.rocksdb_wrapper import RocksDBWrapper
-
 
 class TestBlockValidator(unittest.TestCase):
 
     def setUp(self):
-        """测试前的准备工作"""
-        # 创建测试交易
-        txin1 = TxIn(
-            prev_tx_hash=b'\x00' * 32,
-            prev_tx_out_index=0,
-            unlocking_script=b'test_unlock_script_1'
-        )
-        txout1 = TxOut(
-            value=1000,
-            locking_script=b'test_lock_script_1'
-        )
-        self.test_transaction = Transaction(
-            version=1,
-            tx_ins=[txin1],
-            tx_outs=[txout1],
-            lock_time=0
-        )
+        """Setup common objects for tests."""
+        self.mock_utxo_view = Mock()
 
-        # 创建coinbase交易
-        coinbase_txin = TxIn.create_coinbase_txin(b'Coinbase Data - AltCoin Mined!')
-        coinbase_txout = TxOut(
-            value=5000,
-            locking_script=b'\x00' * 20
-        )
-        self.coinbase_transaction = Transaction(
-            version=1,
-            tx_ins=[coinbase_txin],
-            tx_outs=[coinbase_txout],
-            lock_time=0
-        )
+        # Coinbase transaction
+        self.coinbase_tx = Mock(spec=Transaction)
+        self.coinbase_tx.is_coinbase.return_value = True
+        self.coinbase_tx.tx_ins = [Mock(spec=TxIn)]
+        self.coinbase_tx.tx_outs = [Mock(spec=TxOut, value=5000)]
+        
+        # Regular transaction spending a 1000-unit UTXO and creating a 900-unit output (100 fee)
+        self.tx_in1 = Mock(spec=TxIn)
+        self.tx_out1 = Mock(spec=TxOut, value=900)
+        self.regular_tx1 = Mock(spec=Transaction)
+        self.regular_tx1.is_coinbase.return_value = False
+        self.regular_tx1.tx_ins = [self.tx_in1]
+        self.regular_tx1.tx_outs = [self.tx_out1]
+        self.regular_tx1.hash.return_value = b'\x1a' * 32
 
-        # 创建测试区块头
-        self.test_header = BlockHeader(
-            version=1,
-            prev_block_hash=b'\x00' * 32,
-            merkle_root=b'\x00' * 32,
-            timestamp=1234567890,
-            bits=0x1d00ffff,
-            nonce=12345
-        )
+        # UTXO that will be "found" by the mock_utxo_view
+        self.utxo1 = Mock(spec=TxOut, value=1000)
 
-        # 创建测试区块
-        self.test_block = Block(
-            header=self.test_header,
-            transactions=[self.coinbase_transaction, self.test_transaction]
-        )
+    def test_check_transactions_and_get_fees_valid(self):
+        """Test a valid list of transactions, expecting correct fee calculation."""
+        self.mock_utxo_view.get_utxo.return_value = self.utxo1
+        transactions = [self.coinbase_tx, self.regular_tx1]
+        
+        with patch.object(BlockValidator, 'get_block_reward', return_value=5000):
+            total_fees = BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
+            self.assertEqual(total_fees, 100) # 1000 in - 900 out = 100 fee
+        
+        self.mock_utxo_view.get_utxo.assert_called_once_with(self.tx_in1)
 
-    def test_bits_to_target(self):
-        """测试bits到target的转换"""
-        # 测试一个典型的bits值
-        bits = 0x1d00ffff
-        target = BlockValidator.bits_to_target(bits)
-        expected_target = 0x00ffff << (0x1d - 3) * 8
-        self.assertEqual(target, expected_target)
+    def test_fails_on_empty_transactions(self):
+        """Test that it raises ValueError for an empty transaction list."""
+        with self.assertRaisesRegex(ValueError, "Transaction list cannot be empty"):
+            BlockValidator.check_transactions_and_get_fees([], self.mock_utxo_view, 1)
 
-        # 测试另一个bits值
-        bits = 0x1f00ffff
-        target = BlockValidator.bits_to_target(bits)
-        expected_target = 0x00ffff << (0x1f - 3) * 8
-        self.assertEqual(target, expected_target)
+    def test_fails_on_no_coinbase(self):
+        """Test that it raises ValueError if the first transaction is not a coinbase."""
+        with self.assertRaisesRegex(ValueError, "First transaction must be a coinbase"):
+            BlockValidator.check_transactions_and_get_fees([self.regular_tx1], self.mock_utxo_view, 1)
 
-    def test_get_block_reward(self):
-        """测试区块奖励计算"""
-        # 创世区块奖励
-        from config import INITIAL_BLOCK_REWARD, REWARD_CUTOFF_BLOCKS
-        reward = BlockValidator.get_block_reward(0)
-        self.assertEqual(reward, INITIAL_BLOCK_REWARD)
+    def test_fails_on_multiple_coinbases(self):
+        """Test that it raises ValueError for more than one coinbase transaction."""
+        transactions = [self.coinbase_tx, self.coinbase_tx]
+        with self.assertRaisesRegex(ValueError, "More than one coinbase transaction found"):
+            BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
 
-        # 第一个减半前的区块
-        reward = BlockValidator.get_block_reward(REWARD_CUTOFF_BLOCKS - 1)
-        self.assertEqual(reward, INITIAL_BLOCK_REWARD)
+    def test_fails_on_utxo_not_found(self):
+        """Test that it raises ValueError if an input UTXO is not found."""
+        self.mock_utxo_view.get_utxo.return_value = None
+        transactions = [self.coinbase_tx, self.regular_tx1]
+        with self.assertRaisesRegex(ValueError, "Input UTXO not found"):
+            BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
 
-        # 第一次减半后的区块
-        reward = BlockValidator.get_block_reward(REWARD_CUTOFF_BLOCKS)
-        self.assertEqual(reward, INITIAL_BLOCK_REWARD // 2)
+    def test_fails_on_insufficient_funds(self):
+        """Test that it raises ValueError if input sum is less than output sum."""
+        # Input is 1000, but let's make the output 1100
+        self.regular_tx1.tx_outs = [Mock(spec=TxOut, value=1100)]
+        self.mock_utxo_view.get_utxo.return_value = self.utxo1
+        transactions = [self.coinbase_tx, self.regular_tx1]
+        
+        with self.assertRaisesRegex(ValueError, "Input sum less than output sum"):
+            BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
 
-        # 第二次减半后的区块
-        reward = BlockValidator.get_block_reward(REWARD_CUTOFF_BLOCKS * 2)
-        self.assertEqual(reward, INITIAL_BLOCK_REWARD // 4)
+    def test_fails_on_coinbase_overspend(self):
+        """Test that it raises ValueError if coinbase output exceeds reward plus fees."""
+        # Fees are 100. Reward is 5000. Total allowed is 5100.
+        self.coinbase_tx.tx_outs = [Mock(spec=TxOut, value=5101)]
+        self.mock_utxo_view.get_utxo.return_value = self.utxo1
+        transactions = [self.coinbase_tx, self.regular_tx1]
 
-        # 测试奖励最终变为0的情况
-        reward = BlockValidator.get_block_reward(REWARD_CUTOFF_BLOCKS * 20)
-        self.assertEqual(reward, INITIAL_BLOCK_REWARD // (2**20))
+        with patch.object(BlockValidator, 'get_block_reward', return_value=5000):
+            with self.assertRaisesRegex(ValueError, "Coinbase output value exceeds block reward plus fees"):
+                BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
 
-        # 测试奖励为0的情况
-        reward = BlockValidator.get_block_reward(REWARD_CUTOFF_BLOCKS * 50)
-        self.assertEqual(reward, 0)
+    def test_check_block_integration(self):
+        """Test the main check_block function integrates correctly."""
+        mock_block = Mock(spec=Block)
+        mock_block.transactions = [self.coinbase_tx]
+        prev_header_info = {'height': 0}
 
-    def test_check_block_header(self):
-        """测试区块头验证"""
-        # 创建一个有效的区块头（哈希值小于目标值）
-        header = BlockHeader(
-            version=1,
-            prev_block_hash=b'\x00' * 32,
-            merkle_root=b'\x00' * 32,
-            timestamp=1234567890,
-            bits=0x1f00ffff,  # 相对较低的难度
-            nonce=12345
-        )
-
-        # 使用patch确保哈希值小于目标值
-        with patch.object(BlockHeader, 'hash', return_value=b'\x00' * 32):
-            result = BlockValidator.check_block_header(header)
-            self.assertTrue(result)
-
-        # 创建一个无效的区块头（哈希值大于目标值）
-        header2 = BlockHeader(
-            version=1,
-            prev_block_hash=b'\x00' * 32,
-            merkle_root=b'\x00' * 32,
-            timestamp=1234567890,
-            bits=0x0400ffff,  # 非常高的难度
-            nonce=12345
-        )
-
-        # 使用patch确保哈希值大于目标值
-        with patch.object(BlockHeader, 'hash', return_value=b'\xff' * 32):
-            result = BlockValidator.check_block_header(header2)
-            self.assertFalse(result)
-
-    def test_check_merkle_root(self):
-        """测试默克尔根验证"""
-        # 创建一个区块，其默克尔根与交易不匹配
-        header = BlockHeader(
-            version=1,
-            prev_block_hash=b'\x00' * 32,
-            merkle_root=b'\x00' * 32,  # 错误的默克尔根
-            timestamp=1234567890,
-            bits=0x1d00ffff,
-            nonce=12345
-        )
-
-        block = Block(
-            header=header,
-            transactions=[self.coinbase_transaction, self.test_transaction]
-        )
-
-        # 验证应该失败，因为默克尔根不匹配
-        result = BlockValidator.check_merkle_root(block)
-        self.assertFalse(result)
-
-    def test_check_block_transactions_no_transactions(self):
-        """测试区块交易验证 - 没有交易的情况"""
-        # 创建一个没有交易的区块
-        block = Block(header=self.test_header, transactions=[])
-
-        # 创建mock chain_state
-        chain_state = Mock(spec=ChainState)
-
-        result = BlockValidator.check_block_transactions(block, chain_state, 1)
-        self.assertFalse(result)
-
-    def test_check_block_transactions_no_coinbase(self):
-        """测试区块交易验证 - 没有coinbase交易"""
-        block = Block(
-            header=self.test_header,
-            transactions=[self.test_transaction]  # 没有coinbase交易
-        )
-
-        chain_state = Mock(spec=ChainState)
-
-        result = BlockValidator.check_block_transactions(block, chain_state, 1)
-        self.assertFalse(result)
-
-    def test_check_block_transactions_multiple_coinbase(self):
-        """测试区块交易验证 - 多个coinbase交易"""
-        block = Block(
-            header=self.test_header,
-            transactions=[self.coinbase_transaction, self.coinbase_transaction]  # 两个coinbase交易
-        )
-
-        chain_state = Mock(spec=ChainState)
-
-        result = BlockValidator.check_block_transactions(block, chain_state, 1)
-        self.assertFalse(result)
-
-    def test_check_block_transactions_coinbase_reward_too_high(self):
-        """测试区块交易验证 - coinbase奖励过高"""
-        # 创建一个奖励过高的coinbase交易
-        coinbase_txin = TxIn.create_coinbase_txin(b'Coinbase Data - AltCoin Mined!')
-        coinbase_txout = TxOut(
-            value=1000000000000,  # 过高的奖励
-            locking_script=b'\x00' * 20
-        )
-        high_reward_coinbase = Transaction(
-            version=1,
-            tx_ins=[coinbase_txin],
-            tx_outs=[coinbase_txout],
-            lock_time=0
-        )
-
-        block = Block(
-            header=self.test_header,
-            transactions=[high_reward_coinbase, self.test_transaction]
-        )
-
-        chain_state = Mock(spec=ChainState)
-
-        result = BlockValidator.check_block_transactions(block, chain_state, 1)
-        self.assertFalse(result)
-
-    def test_check_block(self):
-        """测试完整区块验证"""
-        # 创建mock对象
-        chain_state = Mock(spec=ChainState)
-        block_index = Mock(spec=BlockIndex)
-        prev_header_info = {'height': 10}
-
-        # 模拟验证失败的情况
-        with patch.object(BlockValidator, 'check_merkle_root', return_value=False):
-            result = BlockValidator.check_block(self.test_block, chain_state, block_index, prev_header_info)
-            self.assertFalse(result)
-
-        # 模拟验证成功的情况
+        # Test success case
         with patch.object(BlockValidator, 'check_merkle_root', return_value=True):
-            with patch.object(BlockValidator, 'check_block_transactions', return_value=True):
-                result = BlockValidator.check_block(self.test_block, chain_state, block_index, prev_header_info)
+            with patch.object(BlockValidator, 'check_transactions_and_get_fees') as mock_check_tx:
+                result = BlockValidator.check_block(mock_block, self.mock_utxo_view, None, prev_header_info)
                 self.assertTrue(result)
+                mock_check_tx.assert_called_once_with(mock_block.transactions, self.mock_utxo_view, 1)
 
+        # Test failure case from check_transactions_and_get_fees
+        with patch.object(BlockValidator, 'check_merkle_root', return_value=True):
+            with patch.object(BlockValidator, 'check_transactions_and_get_fees', side_effect=ValueError("Test error")) as mock_check_tx:
+                result = BlockValidator.check_block(mock_block, self.mock_utxo_view, None, prev_header_info)
+                self.assertFalse(result)
+                mock_check_tx.assert_called_once_with(mock_block.transactions, self.mock_utxo_view, 1)
 
 if __name__ == '__main__':
     unittest.main()

@@ -14,7 +14,7 @@ from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
 from core.block_validator import BlockValidator
 import tempfile
-from config import config
+from config import *
 class TestBlockchainIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -48,7 +48,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         
         utxo = self.blockchain.chain_state.get_utxo(coinbase_tx_in)
         self.assertIsNotNone(utxo)
-        self.assertEqual(utxo.value, 50 * 100000000)
+        self.assertEqual(utxo.value, INITIAL_BLOCK_REWARD)
         print("Genesis block and its UTXO verified successfully.")
 
     def _mine_block(self, prev_block_hash: bytes, transactions: list, bits: int) -> Block:
@@ -74,10 +74,11 @@ class TestBlockchainIntegration(unittest.TestCase):
         new_height = prev_tip['height'] + 1
         reward = BlockValidator.get_block_reward(new_height)
         coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(f"Block {new_height}".encode())], [TxOut(reward, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
-        
+        bits = self.blockchain.block_index.calculate_required_bits(new_height)
+
         # 3. Mine the new block
         print("Mining a new block...")
-        new_block = self._mine_block(prev_block_hash, [coinbase_tx], prev_tip['bits'])
+        new_block = self._mine_block(prev_block_hash, [coinbase_tx], bits)
         print(f"Block mined! Nonce: {new_block.header.nonce}, Hash: {new_block.hash().hex()}")
         
         # 4. Add the block to the blockchain

@@ -4,13 +4,13 @@ from logging.handlers import TimedRotatingFileHandler
 from config import config  # 导入我们的配置对象
 
 
-def setup_logger():
+def setup_logger(name="AltCoin"):
     """
     根据配置设置日志，支持控制台输出和按天轮转的文件输出。
     """
     log_level = getattr(logging, config.log_level.upper(), logging.INFO)
 
-    logger = logging.getLogger("AltCoin")
+    logger = logging.getLogger(name)
     logger.setLevel(log_level)
 
     # 防止重复添加handler

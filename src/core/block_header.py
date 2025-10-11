@@ -40,7 +40,20 @@ class BlockHeader:
         version, prev_block_hash, merkle_root, timestamp, bits, nonce = struct.unpack(cls.FORMAT, stream.read(80))
         return cls(version, prev_block_hash, merkle_root, timestamp, bits, nonce)
 
+    @classmethod
+    def from_dict(cls, data: dict) -> 'BlockHeader':
+        """从字典创建BlockHeader实例。"""
+        return cls(
+            version=data['version'],
+            prev_block_hash=data['prev_block_hash'],
+            merkle_root=data['merkle_root'],
+            timestamp=data['timestamp'],
+            bits=data['bits'],
+            nonce=data['nonce']
+        )
+
     def hash(self) -> bytes:
         """计算区块哈希（比特币风格的双重SHA256）。"""
         serialized_data = self.serialize()
         return hash_data(serialized_data)
+

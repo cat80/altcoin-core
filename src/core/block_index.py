@@ -67,7 +67,7 @@ class BlockIndex:
         获取当前已知拥有最大 total_work 的区块头信息，即主链的顶端。
         """
         with self.sqldb.get_session() as session:
-            tip_model = session.query(BlockHeaderModel).order_by(BlockHeaderModel.total_work.desc(), BlockHeaderModel.height.desc()).first()
+            tip_model = session.query(BlockHeaderModel).where(BlockHeaderModel.status == BLOCK_STATUS_VALID).order_by(BlockHeaderModel.total_work.desc(), BlockHeaderModel.height.desc()).first()
             return tip_model.to_dict() if tip_model else None
 
     def get_ancestor(self, block_hash: bytes, height: int) -> Optional[dict]:
@@ -88,69 +88,47 @@ class BlockIndex:
             current_hash = info['prev_block_hash']
         return None
 
-    def find_common_ancestor(self, old_tip_hash: bytes, new_tip_hash: bytes) -> Tuple[Optional[bytes], List[dict], List[dict]]:
+    def find_common_ancestor(self, new_tip_hash: bytes, old_tip_hash: bytes) -> Tuple[Optional[bytes], List[dict], List[dict]]:
         """
-        查找两个区块的共同祖先，并返回需要回滚的旧链区块列表和需要应用的新链区块列表。
-        
-        Returns:
-            Tuple[Optional[bytes], List[dict], List[dict]]: 
-            (共同祖先哈希, 需要回滚的旧链区块列表(从旧tip到共同祖先，不包括共同祖先), 
-             需要应用的新链区块列表(从共同祖先到新tip，不包括共同祖先))
+        高效地查找两个区块的共同祖先，并返回需要回滚和应用的区块列表。
         """
-        # 获取两个链的区块信息
-        old_chain_blocks = []
-        new_chain_blocks = []
-        
-        # 获取旧链区块信息，直到创世区块
-        current_hash = old_tip_hash
-        while current_hash:
-            block_info = self.get_header_info(current_hash)
-            if not block_info:
-                break
-            old_chain_blocks.append(block_info)
-            current_hash = block_info['prev_block_hash']
-        
-        # 获取新链区块信息，直到创世区块或与旧链相遇
-        current_hash = new_tip_hash
-        new_chain_block_hashes = set()  # 用于快速查找共同祖先
-        while current_hash:
-            block_info = self.get_header_info(current_hash)
-            if not block_info:
-                break
-            new_chain_blocks.append(block_info)
-            new_chain_block_hashes.add(current_hash)
-            # 检查是否在旧链中找到共同祖先
-            if current_hash in [block['block_hash'] for block in old_chain_blocks]:
-                break
-            current_hash = block_info['prev_block_hash']
-        
-        # 查找共同祖先
-        common_ancestor_hash = None
-        for block_info in new_chain_blocks:
-            if block_info['block_hash'] in [b['block_hash'] for b in old_chain_blocks]:
-                common_ancestor_hash = block_info['block_hash']
-                break
-        
-        if not common_ancestor_hash:
-            # 如果没有找到共同祖先，返回None
-            return None, [], []
-        
-        # 构造需要回滚的旧链区块列表（从旧tip到共同祖先，不包括共同祖先）
-        old_chain_to_rollback = []
-        for block_info in old_chain_blocks:
-            if block_info['block_hash'] == common_ancestor_hash:
-                break
-            old_chain_to_rollback.append(block_info)
-        
-        # 构造需要应用的新链区块列表（从共同祖先到新tip，不包括共同祖先）
         new_chain_to_apply = []
-        for block_info in reversed(new_chain_blocks):  # 反转列表以从共同祖先到新tip的顺序
-            if block_info['block_hash'] == common_ancestor_hash:
-                continue  # 跳过共同祖先
-            new_chain_to_apply.append(block_info)
-            if block_info['block_hash'] == new_tip_hash:
-                break
-        
+        old_chain_to_rollback = []
+
+        p_new = self.get_header_info(new_tip_hash)
+        p_old = self.get_header_info(old_tip_hash)
+
+        # 处理其中一个或两个 tip 无效的情况
+        if not p_new or not p_old:
+            return None, [], []
+
+        # 1. 将较高的链回退，直到两个链的高度相同
+        while p_new['height'] > p_old['height']:
+            new_chain_to_apply.append(p_new)
+            p_new = self.get_header_info(p_new['prev_block_hash'])
+            if not p_new: return None, [], [] # 链断裂，无共同祖先
+
+        while p_old['height'] > p_new['height']:
+            old_chain_to_rollback.append(p_old)
+            p_old = self.get_header_info(p_old['prev_block_hash'])
+            if not p_old: return None, [], [] # 链断裂，无共同祖先
+
+        # 2. 现在两条链在同一高度，同时回退直到找到共同祖先
+        while p_new['block_hash'] != p_old['block_hash']:
+            new_chain_to_apply.append(p_new)
+            old_chain_to_rollback.append(p_old)
+            
+            p_new = self.get_header_info(p_new['prev_block_hash'])
+            p_old = self.get_header_info(p_old['prev_block_hash'])
+
+            if not p_new or not p_old:
+                return None, [], [] # 到达创世块之前链就断了，无共同祖先
+
+        common_ancestor_hash = p_new['block_hash']
+
+        # 3. new_chain_to_apply 列表是从 new_tip 到共同祖先的，需要反转
+        new_chain_to_apply.reverse()
+
         return common_ancestor_hash, old_chain_to_rollback, new_chain_to_apply
 
     def update_block_status(self, block_hash: bytes, status: int):
@@ -195,13 +173,13 @@ class BlockIndex:
             header_model = session.query(BlockHeaderModel).filter_by(height=height).first()
             return header_model.to_dict() if header_model else None
 
-    def calculate_required_bits(self, new_block_height: int) -> int:
+    def calculate_required_bits(self, new_block_height: int,previous_header=None) -> int:
         """
         根据区块高度计算所需的难度(bits)。
         
         Args:
             new_block_height: 新区块的高度
-            
+            previous_header:前一个区块的block_index，可None自动根据高度获取区块
         Returns:
             int: 计算出的bits值
         """
@@ -211,34 +189,36 @@ class BlockIndex:
 
         # 2. 检查当前区块是否是难度调整点
         #    注意：是新周期的第一个区块需要调整，所以是对当前高度取余
+        if not previous_header:
+            previous_header = self.get_header_by_height(new_block_height - 1)
+
         if new_block_height % ADJUSTMENT_INTERVAL != 0:
             # 如果不是调整点，难度与上一个区块相同
-            previous_header = self.get_header_by_height(new_block_height - 1)
             return previous_header['bits']
         else:
             # 是难度调整点，需要计算新难度
 
             # a. 找到上一个周期的最后一个区块
             #    例如，计算高度20160的难度时，需要用20159的数据
-            last_block_in_period = self.get_header_by_height(new_block_height - 1)
+            # last_block_in_period = self.get_header_by_height(new_block_height - 1)
 
             # b. 找到上一个周期的第一个区块
             #    例如，计算高度20160的难度时，需要用10080的数据
             first_block_in_period = self.get_header_by_height(new_block_height - ADJUSTMENT_INTERVAL)
 
             # c. 计算实际花费时间
-            actual_timespan = last_block_in_period['timestamp'] - first_block_in_period['timestamp']
+            actual_timespan = previous_header['timestamp'] - first_block_in_period['timestamp']
             ONE_FOURTH_TIMESPAN = TARGET_TIMESPAN // 4
             FOUR_TIMES_TIMESPAN = TARGET_TIMESPAN * 4
 
-            # d. 应用安全限制 (非常重要!)
+            # d. 应用安全限制 (非常重要!),把难度实际控制在预期的四分之1和四倍之间，避免数值过小或过大
             if actual_timespan < ONE_FOURTH_TIMESPAN:
                 actual_timespan = ONE_FOURTH_TIMESPAN
             if actual_timespan > FOUR_TIMES_TIMESPAN:
                 actual_timespan = FOUR_TIMES_TIMESPAN
 
-            # e. 获取旧的Target值
-            old_target = bits_to_target(last_block_in_period['bits'])
+            # 获取旧的Target值
+            old_target = bits_to_target(previous_header['bits'])
 
             # f. 使用核心公式计算新Target
             #    注意：为了避免浮点数精度问题，通常使用大整数运算
@@ -247,7 +227,6 @@ class BlockIndex:
             # # g. 确保新Target不超过网络允许的最大值 (初始Target)
             # if new_target > MAX_TARGET:
             #     new_target = MAX_TARGET
-
             # h. 将新Target转换回bits格式
             # 这里需要实现target_to_bits函数
             return target_to_bits(new_target)
