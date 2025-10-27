@@ -67,12 +67,16 @@ class TestRocksDBWrapper(unittest.TestCase):
         """测试批量写入数据"""
         # 创建批处理对象
 
+        self.db.put(b'ikey1',b'ikvalue1')
+        self.assertEqual(self.db.get(b'ikey1'), b'ikvalue1')
         batch = self.db.new_batch()
         
         # 添加多个键值对到批处理中
         batch.add(b'key1', b'value1')
         batch.add(b'key2', b'value2')
         batch.add(b'key3', b'value3')
+
+        batch.delete(b'ikey1')
         
         # 执行批处理写入
         self.db.write_batch(batch)
@@ -81,6 +85,7 @@ class TestRocksDBWrapper(unittest.TestCase):
         self.assertEqual(self.db.get(b'key1'), b'value1')
         self.assertEqual(self.db.get(b'key2'), b'value2')
         self.assertEqual(self.db.get(b'key3'), b'value3')
+        self.assertIsNone(self.db.get(b'ikey1'))
     
     def test_write_batch_bytes(self):
         """测试write_batch_bytes方法"""

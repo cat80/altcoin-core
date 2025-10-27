@@ -78,7 +78,7 @@ class Transaction:
 
     def hash(self) -> bytes:
         """计算并返回这笔交易的哈希ID (TxID)"""
-        return hash_data(self.serialize(for_signing=True))
+        return hash_data(self.serialize(for_signing=False))
 
     def serialize(self, for_signing: bool = False) -> bytes:
         """

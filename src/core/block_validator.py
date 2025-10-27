@@ -12,6 +12,7 @@ from .block_header import BlockHeader
 from utils.crypto import hash_data
 from config import INITIAL_BLOCK_REWARD,REWARD_CUTOFF_BLOCKS
 from utils import log
+from .transaction import Transaction
 
 class BlockValidator:
     """
@@ -66,7 +67,7 @@ class BlockValidator:
                 raise ValueError("More than one coinbase transaction found.")
 
         total_fees = 0
-        for tx in transactions:
+        for tx   in transactions:
             if not tx.is_coinbase():
                 input_sum = 0
                 for tx_in in tx.tx_ins:
@@ -83,9 +84,17 @@ class BlockValidator:
                 total_fees += (input_sum - output_sum)
                 
                 # 验证交易签名 (假设verify_signature不需要UTXO信息，如果需要则需调整)
-                # if not tx.verify_signature():
-                #     raise ValueError(f"Signature verification failed for transaction {tx.hash().hex()}")
+                if not tx.verify_signature():
+                    raise ValueError(f"Signature verification failed for transaction {tx.hash().hex()}")
             else:
+                # 这里需要验证coinbase的tx in 的unscript必须包含当前区块的前缀。以确保coinbase的hash完全不一致。
+                # if tx.tx_ins[0].unlocking_script
+                expected_prefix = str(block_height).encode('utf-8') + b':'
+                coinbase_script = tx.tx_ins[0].unlocking_script
+
+                if not coinbase_script.startswith(expected_prefix):
+                    raise ValueError(f"Coinbase unlocking_script does not start with correct height prefix. "
+                                     f"Expected: {expected_prefix}, Got: {coinbase_script[:len(expected_prefix)]}...")
                 block_reward = BlockValidator.get_block_reward(block_height)
                 coinbase_output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
                 if coinbase_output_sum > block_reward + total_fees:

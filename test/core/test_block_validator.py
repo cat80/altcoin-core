@@ -14,7 +14,9 @@ class TestBlockValidator(unittest.TestCase):
         # Coinbase transaction
         self.coinbase_tx = Mock(spec=Transaction)
         self.coinbase_tx.is_coinbase.return_value = True
-        self.coinbase_tx.tx_ins = [Mock(spec=TxIn)]
+        coinbase_txin = Mock(spec=TxIn)
+        coinbase_txin.unlocking_script = b'1:test unlocking script'
+        self.coinbase_tx.tx_ins = [coinbase_txin]
         self.coinbase_tx.tx_outs = [Mock(spec=TxOut, value=5000)]
         
         # Regular transaction spending a 1000-unit UTXO and creating a 900-unit output (100 fee)
@@ -82,6 +84,20 @@ class TestBlockValidator(unittest.TestCase):
 
         with patch.object(BlockValidator, 'get_block_reward', return_value=5000):
             with self.assertRaisesRegex(ValueError, "Coinbase output value exceeds block reward plus fees"):
+                BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
+
+    def test_fails_on_coinbase_wrong_unlocking_script(self):
+        """Test that it raises ValueError if coinbase unlocking_script doesn't start with correct prefix."""
+        # Create a coinbase with wrong prefix
+        bad_coinbase_txin = Mock(spec=TxIn)
+        bad_coinbase_txin.unlocking_script = b'2:wrong prefix'
+        self.coinbase_tx.tx_ins = [bad_coinbase_txin]
+        
+        self.mock_utxo_view.get_utxo.return_value = self.utxo1
+        transactions = [self.coinbase_tx, self.regular_tx1]
+        
+        with patch.object(BlockValidator, 'get_block_reward', return_value=5000):
+            with self.assertRaisesRegex(ValueError, "Coinbase unlocking_script does not start with correct height prefix"):
                 BlockValidator.check_transactions_and_get_fees(transactions, self.mock_utxo_view, 1)
 
     def test_check_block_integration(self):

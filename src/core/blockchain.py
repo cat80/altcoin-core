@@ -84,7 +84,8 @@ class Blockchain:
         这包括验证、存储、更新索引和状态，以及处理可能的分叉和重组。
         """
         block_hash = block.hash()
-        
+
+        log.debug(f'start handle add block,block hash:{block.hash().hex()},trans count:{len(block.transactions)},coinbase hashid:{block.transactions[0].hash().hex()}')
         # 1. 初步验证 (无状态，快速失败)，这里主要验证pow是否有效
         if not BlockValidator.check_block_header(block.header):
             log.debug(f"Block {block_hash.hex()} failed header validation (PoW).")
@@ -198,6 +199,8 @@ class Blockchain:
         # 3. 所有验证通过，提交变更
         # a. 提交UTXO变更
         final_batch = cache_view.get_batch()
+
+        log.debug(f'reorg batch write len:{final_batch.len()}')
         self.chain_state.commit_utxo_batch(final_batch)
         
         # b. 更新区块索引状态

@@ -26,8 +26,6 @@ class TestBlockchainIntegration(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
         """Clean up the temporary directory."""
-        # if os.path.exists(self.test_dir):
-        #     shutil.rmtree(self.test_dir)
 
     def test_genesis_block_creation(self):
         """
@@ -73,7 +71,7 @@ class TestBlockchainIntegration(unittest.TestCase):
         # 2. Create a new coinbase transaction for the new block
         new_height = prev_tip['height'] + 1
         reward = BlockValidator.get_block_reward(new_height)
-        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(f"Block {new_height}".encode())], [TxOut(reward, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
+        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(f"{new_height}:Block {new_height}".encode('utf8'))], [TxOut(reward, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
         bits = self.blockchain.block_index.calculate_required_bits(new_height)
 
         # 3. Mine the new block
