@@ -3,6 +3,7 @@ block_storage.py
 负责将完整的区块数据写入磁盘文件 (blk*****.dat) 并从中读取。
 这个模块被封装成一个类，以管理数据目录的状态。
 """
+import logging
 import os
 import io
 import struct
@@ -10,10 +11,10 @@ from typing import Tuple
 
 from .block import Block
 from config import MAGIC_BYTES
-from utils import log
 # 每个区块文件的最大大小 (例如: 128MB)
 MAX_FILE_SIZE = 128 * 1024 * 1024
 
+log = logging.getLogger(__name__)
 class BlockStorage:
     """
     管理区块数据在磁盘上的读写。

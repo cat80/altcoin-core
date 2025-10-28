@@ -14,10 +14,12 @@ from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
 from core.block_validator import BlockValidator
 import tempfile
-from config import *
+from config import Config,load_config,INITIAL_BLOCK_REWARD
 class TestBlockchainIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+
+        config = load_config('dev',cli_data_dir='./test_tmp/')
         """Set up a temporary directory for test data."""
         cls.temp_dir = tempfile.mkdtemp()
         print(config.base_dir)

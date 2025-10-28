@@ -5,11 +5,7 @@ Contains general utility functions.
 from .crypto import  *
 from .merkle_tree import MerkleTree
 
-from .logger import setup_logger
 from .exceptions import *
 
 from .tools import  *
-# 1. 创建全局日志
-log = setup_logger()
-
-log.info("Utility services initialized.")
+# 1. 创建全局日志,使日志配置生效

@@ -1,3 +1,4 @@
+import logging
 import unittest
 import tempfile
 import shutil
@@ -13,8 +14,7 @@ from core.block import Block
 from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
 from config import MAGIC_BYTES
-from utils import log
-
+log = logging.getLogger(__name__)
 class TestBlockStorage(unittest.TestCase):
     def setUp(self):
         """在每个测试方法之前创建临时目录"""

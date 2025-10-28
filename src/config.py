@@ -7,23 +7,26 @@ class Config:
     配置类，用于加载和提供对.ini配置文件的访问。
     """
 
-    def __init__(self, config_file):
+    def __init__(self, config_file,cli_data_dir:str,cli_port:int):
         self.parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 
         if config_file and  os.path.exists(config_file):
-
             self.parser.read(config_file)
         else:
             print(f'config file not exists,use temp config')
-        self.base_dir =self.parser.get('basic', 'base_dir', fallback='./data/')
+        self.base_dir = cli_data_dir
+        if not self.base_dir.endswith('/'):
+            self.base_dir = self.base_dir + '/'
+        self.node_listen_port = cli_port # 监听端口
+
         # 日志配置
         self.log_level = self.parser.get('logging', 'level', fallback='INFO')
-        self.log_dir = self.parser.get('logging', 'directory', fallback='./logs/')
+        self.log_dir = self.parser.get('logging', 'directory', fallback=f'{self.base_dir}/logs/')
 
         # 存储配置
-        self.block_dir = self.parser.get('storage', 'block_dir', fallback='./data/blocks/')
-        self.rocksdb_dir = self.parser.get('storage', 'rocksdb_dir', fallback='./data/utxo/')
-        self.sqlite_path = self.parser.get('storage', 'sqlite_path', fallback='./data/index.db')
+        self.block_dir = f"{self.base_dir}/blocks/"
+        self.rocksdb_dir = f"{self.base_dir}/utxo/"
+        self.sqlite_path =f"{self.base_dir}/index.db"
 
         # 确保目录存在
         self._create_dirs()
@@ -37,12 +40,12 @@ class Config:
         os.makedirs(os.path.dirname(self.sqlite_path), exist_ok=True)
 
 
-def load_config() -> Config:
+
+def load_config(env,cli_data_dir,cli_port=1989) -> Config:
     """
     根据环境变量 ALTCOIN_ENV 加载配置。
     默认为 'dev' 环境。
     """
-    env = os.environ.get('ALTCOIN_ENV', 'dev').lower()
     config_filename = f"{env}.ini"
     cwd = Path.cwd()
 
@@ -57,10 +60,9 @@ def load_config() -> Config:
         print(f"Loading configuration for '{env}' environment from '{exists_config_file.resolve()}'...")
     else:
         print(f"Loading configuration for '{env}' environment from '{env}'.ini not exists use default config.")
-    return Config(  exists_config_file.resolve() if exists_config_file else None)
+    return Config(  exists_config_file.resolve() if exists_config_file else None,cli_data_dir,cli_port)
 
 # 在模块加载时，就执行加载配置的操作
-config = load_config()
 
 
 # 定义一些常量

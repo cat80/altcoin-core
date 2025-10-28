@@ -4,21 +4,24 @@ import os
 import tempfile
 import shutil
 
-
+import tempfile
 from storage.rocksdb_wrapper import RocksDBWrapper
-from config import config
-
+from config import load_config
 class TestRocksDBWrapper(unittest.TestCase):
     
     def setUp(self):
         """在每个测试方法之前创建临时目录和数据库实例"""
 
-        self.db_path = config.rocksdb_dir
+
+        self.db_path = tempfile.mkdtemp()
         self.db = RocksDBWrapper(self.db_path)
     
     def tearDown(self):
         """在每个测试方法之后清理临时目录"""
         self.db.close()
+
+        shutil.rmtree(self.db_path, ignore_errors=True)
+
         # 递归删除临时目录
     
     def test_init_and_put_get(self):

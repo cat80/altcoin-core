@@ -4,6 +4,7 @@ block_validator.py
 这是一个无状态的模块，所有函数都应该是纯函数或静态方法，
 不依赖于任何类实例的状态。
 """
+import logging
 from typing import List
 from .block import Block
 from .chain_state import ChainState
@@ -11,7 +12,7 @@ from .block_index import BlockIndex
 from .block_header import BlockHeader
 from utils.crypto import hash_data
 from config import INITIAL_BLOCK_REWARD,REWARD_CUTOFF_BLOCKS
-from utils import log
+log = logging.getLogger(__name__)
 from .transaction import Transaction
 
 class BlockValidator:

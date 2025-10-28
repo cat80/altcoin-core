@@ -1,11 +1,12 @@
+import logging
 import unittest
 import sys
 import os
 import tempfile
 import shutil
 from sqlalchemy.orm import Session
-from utils import log
-from config import config
+from config import load_config
+log = logging.getLogger(__name__)
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper, BlockHeaderModel
 
 
@@ -15,7 +16,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
         """在每个测试方法之前创建临时目录和数据库实例"""
         # 创建临时目录用于测试
         self.temp_dir = tempfile.mkdtemp()
-        self.db_path = config.sqlite_path
+        self.db_path =     self.temp_dir + "/index.db"
         self.db = SQLAlchemyWrapper(self.db_path)
         self.db.create_all_tables()
         log.debug(f'use db_path:{self.db_path}')

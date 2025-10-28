@@ -4,6 +4,7 @@ blockchain.py
 它作为总指挥，协调 block_storage, block_index, chain_state, 和 block_validator
 等组件，共同处理新区块的接收、验证、存储和链重组。
 """
+import logging
 import os
 import time
 from pickle import FRAME
@@ -16,8 +17,9 @@ from .block_index import BlockIndex
 from .chain_state import ChainState,ChainStateCacheView
 from .block_validator import BlockValidator
 from .block_storage import BlockStorage
-from utils import log
 from config import *
+
+log = logging.getLogger(__name__)
 
 class Blockchain:
     """
