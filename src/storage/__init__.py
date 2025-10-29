@@ -8,13 +8,12 @@ log = logging.getLogger(__name__)
 from storage.rocksdb_wrapper import RocksDBWrapper
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 
-from config import Config
 # 1. 创建全局RocksDB访问对象
 _utxo_db_instance = None # 私有变量，存储实例
-def get_utxo_db(config:Config):
+def get_utxo_db(config):
     global _utxo_db_instance
     if _utxo_db_instance is None:
-        _utxo_db_instance = RocksDBWrapper(config.rocksdb_dir)
+        _utxo_db_instance = RocksDBWrapper(config)
         log.info("RocksDB connection established.")
     return _utxo_db_instance
 

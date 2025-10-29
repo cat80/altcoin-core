@@ -6,7 +6,6 @@ import shutil
 
 import tempfile
 from storage.rocksdb_wrapper import RocksDBWrapper
-from config import load_config
 class TestRocksDBWrapper(unittest.TestCase):
     
     def setUp(self):

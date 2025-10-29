@@ -14,16 +14,16 @@ from core.block_header import BlockHeader
 from core.transaction import Transaction, TxIn, TxOut
 from core.block_validator import BlockValidator
 import tempfile
-from config import Config,load_config,INITIAL_BLOCK_REWARD
+from config import INITIAL_BLOCK_REWARD
 class TestBlockchainIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
 
-        config = load_config('dev',cli_data_dir='./test_tmp/')
+        base_dir  ="test-output"
         """Set up a temporary directory for test data."""
         cls.temp_dir = tempfile.mkdtemp()
-        print(config.base_dir)
-        cls.blockchain = Blockchain.new_from_data_dir(config.base_dir)
+
+        cls.blockchain = Blockchain.new_from_data_dir("test-output")
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)

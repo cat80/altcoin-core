@@ -5,7 +5,6 @@ import os
 import tempfile
 import shutil
 from sqlalchemy.orm import Session
-from config import load_config
 log = logging.getLogger(__name__)
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper, BlockHeaderModel
 

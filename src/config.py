@@ -1,66 +1,133 @@
+import logging
 import os
+import yaml
+import argparse
+import logging.config
 import configparser
 from pathlib import Path
+log = logging.getLogger(__name__)
 
-class Config:
+
+def deep_merge(source: dict, destination: dict) -> dict:
     """
-    配置类，用于加载和提供对.ini配置文件的访问。
+    深度合并两个字典 (source 合并到 destination)
     """
-
-    def __init__(self, config_file,cli_data_dir:str,cli_port:int):
-        self.parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-
-        if config_file and  os.path.exists(config_file):
-            self.parser.read(config_file)
+    for key, value in source.items():
+        if isinstance(value, dict) and key in destination and isinstance(destination[key], dict):
+            # 递归合并字典
+            destination[key] = deep_merge(value, destination[key])
         else:
-            print(f'config file not exists,use temp config')
-        self.base_dir = cli_data_dir
-        if not self.base_dir.endswith('/'):
-            self.base_dir = self.base_dir + '/'
-        self.node_listen_port = cli_port # 监听端口
-
-        # 日志配置
-        self.log_level = self.parser.get('logging', 'level', fallback='INFO')
-        self.log_dir = self.parser.get('logging', 'directory', fallback=f'{self.base_dir}/logs/')
-
-        # 存储配置
-        self.block_dir = f"{self.base_dir}/blocks/"
-        self.rocksdb_dir = f"{self.base_dir}/utxo/"
-        self.sqlite_path =f"{self.base_dir}/index.db"
-
-        # 确保目录存在
-        self._create_dirs()
-
-    def _create_dirs(self):
-        """确保所有配置的目录都存在。"""
-        os.makedirs(self.log_dir, exist_ok=True)
-        os.makedirs(self.block_dir, exist_ok=True)
-        os.makedirs(self.rocksdb_dir, exist_ok=True)
-        # SQLite的目录是文件所在的目录
-        os.makedirs(os.path.dirname(self.sqlite_path), exist_ok=True)
+            # 否则, source 的值直接覆盖 destination 的值
+            destination[key] = value
+    return destination
 
 
-
-def load_config(env,cli_data_dir,cli_port=1989) -> Config:
+def setup_logging(config_path='logging_config.yaml'):
     """
-    根据环境变量 ALTCOIN_ENV 加载配置。
-    默认为 'dev' 环境。
+    (1) 自动加载日志配置
     """
-    config_filename = f"{env}.ini"
-    cwd = Path.cwd()
+    # 确保日志目录存在
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        try:
+            os.makedirs(log_dir)
+        except OSError as e:
+            print(f"警告: 无法创建日志目录 {log_dir}. {e}")
+    try:
+        if not os.path.isfile(config_path):
+            # 如果指定日志配置不存在，则查找当前文件config/logging_config.yaml
+            current_dir = os.path.dirname(  os.path.abspath(__file__))
+            config_path = os.path.join(current_dir,'config/logging_config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            log_config = yaml.safe_load(f.read())
+            logging.config.dictConfig(log_config)
+        logging.info(f"日志系统配置成功。加载配置:{config_path}")
 
-    config_full_path = Path(  os.path.join(cwd,config_filename))
-    exists_config_file = None
-    # 对当前工作目录往上一级级找.ini 配置
-    for parent_dir_item in config_full_path.parents:
-        current_try_config_path = parent_dir_item.joinpath(config_filename)
-        if current_try_config_path.is_file():
-            exists_config_file = current_try_config_path
-    if exists_config_file:
-        print(f"Loading configuration for '{env}' environment from '{exists_config_file.resolve()}'...")
+    except FileNotFoundError:
+        logging.basicConfig(level=logging.INFO)
+        logging.warning(f"未找到日志配置文件 {config_path}，使用基础配置。")
+    except Exception as e:
+        logging.basicConfig(level=logging.INFO)
+        logging.error(f"加载日志配置失败: {e}，使用基础配置。")
+
+
+def load_app_config():
+    """
+    (2) 按你的优先级加载应用配置:
+    (A) 命令行 -> (B) 环境配置 -> (C) 基础配置 -> (D) 硬编码
+    """
+
+    # (D) 硬编码默认值 (最低优先级)
+    config = {
+        'p2p': {
+            'data_dir': './data_hardcoded',
+            'listen_port': 1989,
+        }
+    }
+
+    # (C) 基础配置 (config/base_config.yaml)
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, 'config/base_config.yaml')
+
+        with open(config_path, 'r', encoding='utf-8') as f:
+            base_config = yaml.safe_load(f)
+            config = deep_merge(base_config, config)
+        logging.info("加载基础配置 (base_config.yaml) 成功。")
+    except FileNotFoundError:
+        logging.warning("未找到 base_config.yaml，跳过。")
+
+    # --- 开始处理 (A) 命令行 ---
+    # 我们需要先解析命令行, 才能知道要加载哪个 (B) 环境配置
+    parser = argparse.ArgumentParser(description='My P2P Node')
+
+    # (A.1) 这个参数用来指定加载哪个 (B) 环境配置
+    parser.add_argument(
+        '--env-config',
+        type=str,
+        help='(可选) 指定要加载的环境配置文件路径 (例如: config/dev_config.yaml)'
+    )
+
+    # (A.2) 这些是最高优先级的具体配置
+    parser.add_argument(
+        '--data-dir',
+        type=str,
+        help='(最高优先级) 覆盖数据目录'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        help='(最高优先级) 覆盖监听端口'
+    )
+
+    # 解析命令行参数
+    args = parser.parse_args()
+
+    # --- 处理完毕 ---
+
+    # (B) 环境配置 (由 --env-config 指定)
+    if args.env_config:
+        try:
+            with open(args.env_config, 'r', encoding='utf-8') as f:
+                env_config = yaml.safe_load(f)
+                config = deep_merge(env_config, config)
+            logging.info(f"加载环境配置 ({args.env_config}) 成功。")
+        except FileNotFoundError:
+            logging.error(f"指定的--env-config文件未找到: {args.env_config}")
+        except Exception as e:
+            logging.error(f"加载--env-config文件失败: {e}")
     else:
-        print(f"Loading configuration for '{env}' environment from '{env}'.ini not exists use default config.")
-    return Config(  exists_config_file.resolve() if exists_config_file else None,cli_data_dir,cli_port)
+        logging.info("未指定 --env-config，跳过环境配置。")
+
+    # (A) 命令行具体配置 (最高优先级覆盖)
+    if args.data_dir:
+        config['p2p']['data_dir'] = args.data_dir
+        logging.info(f"配置被命令行覆盖: data_dir = {args.data_dir}")
+    if args.port:
+        config['p2p']['listen_port'] = args.port
+        logging.info(f"配置被命令行覆盖: listen_port = {args.port}")
+
+    return config
 
 # 在模块加载时，就执行加载配置的操作
 

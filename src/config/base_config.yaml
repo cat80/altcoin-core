@@ -1,0 +1,9 @@
+p2p:
+  data_dir: "~/p2p-default"
+  listen_port: 1989
+  coinbase_address: "aaa"
+  peer_nodes:
+    - host: "127.0.0.1"
+      port: 1989
+    - host: "127.0.0.1"
+      port: 1981
