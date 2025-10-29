@@ -1,22 +1,45 @@
 import asyncio
 import logging
+from typing import Optional
+from .protocol import protocol
 
-from .protocol import protocol # 引用你的 protocol.py
-from .peer_manager import PeerManager
-from .event_bus import EventBus
+# 提前导入类型，以支持类型提示
+if False:
+    from .peer_manager import PeerManager
+    from .event_bus import EventBus
+
 
 log = logging.getLogger(__name__)
+
 class Peer:
     def __init__(self, node_id: str, reader, writer,
-                 peer_manager: PeerManager, event_bus: EventBus):
+                 peer_manager: 'PeerManager', event_bus: 'EventBus'):
         self.node_id = node_id
         self.reader = reader
         self.writer = writer
         self.peer_manager = peer_manager
         self.event_bus = event_bus
 
+        # 用于存储对方的“监听地址”
+        self.connectable_ip: Optional[str] = None
+        self.connectable_port: Optional[int] = None
+
         # 每个 Peer 都有自己独立的消息读取循环任务
         self.main_loop_task = asyncio.create_task(self._run_message_loop())
+
+    def set_connectable_address(self, ip: str, port: int):
+        """由 PeerManager 在握手成功后调用"""
+        self.connectable_ip = ip
+        self.connectable_port = port
+        log.debug(f"Peer {self.node_id} connectable address set to {ip}:{port}")
+
+    def get_connection_info(self) -> dict:
+        """用于广播和存入 AddrMan"""
+        return {
+            "node_id": self.node_id,
+            "ip": self.connectable_ip,
+            "port": self.connectable_port
+        }
 
     async def _run_message_loop(self):
         """
@@ -26,37 +49,37 @@ class Peer:
         buffer = b''
         try:
             while True:
-                # 1. 使用你的协议反序列化消息
-                message, buffer = await AsyncProtocol.deserialize_stream(self.reader, buffer)
+                message, buffer = await protocol.deserialize_stream(self.reader, buffer)
                 if message is None:
-                    break # 连接断开
+                    log.info(f"Connection to {self.node_id} @ {addr} closed.")
+                    break
 
-                # 2. **核心解耦**: Peer 不处理消息，而是发布事件
-                #    ProtocolHandler 将会订阅这个事件
                 await self.event_bus.publish('network_message_received', self, message)
 
         except asyncio.CancelledError:
-            log.debug(f"Loop for {self.node_id} cancelled.")
+            log.debug(f"Message loop for {self.node_id} cancelled.")
         except Exception as e:
-            log.debug(f"Message loop for {self.node_id} error: {e}")
+            log.error(f"Message loop for {self.node_id} @ {addr} error: {e}")
         finally:
-            # 循环结束（无论何种原因），通知 PeerManager 移除自己
             await self.peer_manager.remove_peer(self)
 
     async def send_message(self, msgtype: str, payload=None):
         """向这个对等节点发送消息的API"""
         try:
-            # 1. 使用你的协议序列化消息
             message_bytes = protocol.serialize_message(msgtype, payload)
             self.writer.write(message_bytes)
             await self.writer.drain()
         except Exception as e:
-            log.debug(f"Failed to send message to {self.node_id}: {e}")
-            await self.peer_manager.remove_peer(self) # 发送失败，移除
+            log.error(f"Failed to send message to {self.node_id}: {e}")
+            await self.peer_manager.remove_peer(self)
 
     async def close(self):
         """关闭此连接"""
-        self.main_loop_task.cancel()
+        if not self.main_loop_task.done():
+            self.main_loop_task.cancel()
         if not self.writer.is_closing():
-            self.writer.close()
-            await self.writer.wait_closed()
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception as e:
+                log.warning(f"Error while closing writer for {self.node_id}: {e}")
