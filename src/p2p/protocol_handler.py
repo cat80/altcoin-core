@@ -25,6 +25,8 @@ class ProtocolHandler:
         self.event_bus.subscribe('peer_connected', self.on_peer_connected)
         # 订阅连接失败事件
         self.event_bus.subscribe('peer_connection_failed', self.on_peer_connection_failed)
+        # 订阅连接断开事件
+        self.event_bus.subscribe('peer_disconnected', self.on_peer_disconnected)
 
     async def on_peer_connected(self, peer: Peer):
         """
@@ -34,9 +36,9 @@ class ProtocolHandler:
         """
         # 1. 标记成功 (DB)
         conn_info = peer.get_connection_info()
-        if conn_info and conn_info['ip']:
+        if conn_info and conn_info['host']:
             self.address_manager.mark_peer_success(
-                conn_info['node_id'], conn_info['ip'], conn_info['port']
+                conn_info['node_id'], conn_info['host'], conn_info['port']
             )
 
         # 2. 主动拉取地址 (PULL)
@@ -47,6 +49,11 @@ class ProtocolHandler:
         """[EventBus 调用] 当连接失败时标记节点"""
         log.debug(f"标记节点 {node_id} 连接失败")
         self.address_manager.mark_peer_failed(node_id)
+
+    async def on_peer_disconnected(self, peer: Peer):
+        """[EventBus 调用] 当连接断开时标记节点"""
+        log.debug(f"标记节点 {peer.node_id} 连接断开")
+        self.address_manager.mark_peer_disconnected(peer.node_id)
 
     async def on_message_received(self, peer: Peer, message: dict):
         """主消息调度器"""
@@ -64,10 +71,25 @@ class ProtocolHandler:
     async def handle_getaddr(self, peer: Peer, payload: dict):
         """处理 'getaddr' 请求：回复我们的地址列表"""
         log.debug(f"收到 {peer.node_id} 的 'getaddr' 请求")
-        peers_list = self.address_manager.get_peers_to_try(
-            limit=50,
-            exclude_ids={peer.node_id}
-        )
+        
+        # 1. 优先返回当前已连接的节点
+        active_peers = self.peer_manager.get_active_peers_info()
+        
+        # 2. 如果不足，从数据库获取高质量节点补充
+        num_needed = 25 - len(active_peers)
+        if num_needed > 0:
+            # 排除自己和已在列表中的节点
+            exclude_ids = {p['node_id'] for p in active_peers}
+            exclude_ids.add(peer.node_id)
+            
+            db_peers = self.address_manager.get_peers_to_try(
+                limit=num_needed,
+                exclude_ids=exclude_ids
+            )
+            peers_list = active_peers + db_peers
+        else:
+            peers_list = active_peers
+
         await peer.send_message('addr', {'peers': peers_list})
 
     async def handle_addr(self, peer: Peer, payload: dict):

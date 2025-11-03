@@ -119,7 +119,7 @@ class BlockValidator:
             BlockValidator.check_transactions_and_get_fees(block.transactions, utxo_view, block_height)
             
         except ValueError as e:
-            log.debug(f"Block validation failed: {e}")
+            log.debug(f"Block validation failed: {e}", exc_info=True)
             return False
             
         return True

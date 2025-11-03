@@ -10,23 +10,36 @@ from .protocol import protocol
 log = logging.getLogger(__name__)
 
 class PeerManager:
-    def __init__(self, event_bus: EventBus, my_node_id: str, my_listen_port: int):
+    def __init__(self, event_bus: EventBus, my_node_id: str, my_listen_port: int,
+                 address_manager: 'AddressManager', node: 'Node'):
         self.event_bus = event_bus
         self.my_node_id = my_node_id
         self.my_listen_port = my_listen_port
+        self.address_manager = address_manager
+        self.node = node  # Node 实例，用于发起连接
         self.peers: Dict[str, Peer] = {}
         self.pending_requests: Dict[str, asyncio.Future] = {}
 
         self.event_bus.subscribe('block_validated', self.on_new_block_validated)
-        # 订阅 peer_connected 事件，以实现 PUSH 广播
         self.event_bus.subscribe('peer_connected', self.on_peer_connected_gossip)
+
+        # 启动后台维护任务
+        self.maintenance_task = asyncio.create_task(self._maintenance_loop())
+
+    def get_active_node_ids(self) -> set:
+        """返回当前所有已连接节点的 node_id 集合"""
+        return set(self.peers.keys())
+
+    def get_active_peers_info(self) -> list[dict]:
+        """返回当前所有已连接节点的信息列表"""
+        return [p.get_connection_info() for p in self.peers.values() if p.connectable_ip]
 
     async def on_peer_connected_gossip(self, new_peer: Peer):
         """
         [EventBus 调用] 这是“统一逻辑”的 PUSH 部分：广播新节点。
         """
         peer_info = new_peer.get_connection_info()
-        if not peer_info or not peer_info['ip']:
+        if not peer_info or not peer_info['host']:
             log.warning(f"无法广播新节点 {new_peer.node_id}，缺少连接信息")
             return
 
@@ -47,11 +60,14 @@ class PeerManager:
                 'node_id': self.my_node_id,
                 'listen_port': self.my_listen_port
             }
-            writer.write(protocol.serialize_message('hello', hello_msg_payload))
-            await writer.drain()
-
-            remote_hello_msg, _ = await protocol.deserialize_stream(reader, b'')
-
+            if is_initiator:
+                writer.write(protocol.serialize_message('hello', hello_msg_payload))
+                await writer.drain()
+                remote_hello_msg, _ = await protocol.deserialize_stream(reader, b'')
+            else:
+                remote_hello_msg, _ = await protocol.deserialize_stream(reader, b'')
+                writer.write(protocol.serialize_message('hello', hello_msg_payload))
+                await writer.drain()
             if not remote_hello_msg or remote_hello_msg.get('type') != 'hello':
                 raise Exception("Handshake failed: Invalid 'hello' response")
 
@@ -82,6 +98,7 @@ class PeerManager:
             await self.event_bus.publish('peer_connected', peer)
 
         except Exception as e:
+            log.debug("Exception details for start_handshake:", exc_info=True)
             log.error(f"Handshake failed: {e}")
             if remote_node_id:
                 await self.event_bus.publish('peer_connection_failed', remote_node_id)
@@ -132,6 +149,35 @@ class PeerManager:
 
     async def on_new_block_validated(self, block):
         """事件订阅示例：自动广播新区块头"""
-        # header_data = block.header.serialize()
-        # await self.broadcast('notify_new_block_header', {'header': header_data})
         pass # 暂时禁用
+
+    async def _maintenance_loop(self):
+        """
+        后台任务，定期维护节点连接数和数据库。
+        """
+        while True:
+            await asyncio.sleep(60) # 每分钟检查一次
+            try:
+                # 1. 维护连接数
+                active_peers_count = len(self.peers)
+                if active_peers_count < 50: # 目标连接数
+                    num_to_connect = 50 - active_peers_count
+                    log.info(f"连接数 ({active_peers_count}) 低于目标值，尝试连接 {num_to_connect} 个新节点")
+                    
+                    peers_to_try = self.address_manager.get_peers_to_try(
+                        limit=num_to_connect,
+                        exclude_ids=self.get_active_node_ids()
+                    )
+                    
+                    for peer_info in peers_to_try:
+                        asyncio.create_task(
+                            self.node.initiate_outgoing_connection(peer_info['host'], peer_info['port'])
+                        )
+
+                # 2. 清理数据库
+                self.address_manager.cull_bad_peers()
+
+                # 3. 如果连接节点不够，主动去请求其它在线节点的数据，从自己的连接节点获取他们最新的节点列表。这里需要优化，比如可控制节点的访问时间，一个节点一小时只主动获取一次。
+            except Exception as e:
+                log.debug("Exception details for _maintenance_loop:", exc_info=True)
+                log.error(f"节点维护任务出错: {e}")

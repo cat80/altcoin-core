@@ -45,9 +45,11 @@ def setup_logging(config_path='logging_config.yaml'):
 
     except FileNotFoundError:
         logging.basicConfig(level=logging.INFO)
+        logging.debug(f"Exception details for logging config file not found {config_path}:", exc_info=True)
         logging.warning(f"未找到日志配置文件 {config_path}，使用基础配置。")
     except Exception as e:
         logging.basicConfig(level=logging.INFO)
+        logging.debug("Exception details for loading logging config:", exc_info=True)
         logging.error(f"加载日志配置失败: {e}，使用基础配置。")
 
 
@@ -75,6 +77,7 @@ def load_app_config():
             config = deep_merge(base_config, config)
         logging.info("加载基础配置 (base_config.yaml) 成功。")
     except FileNotFoundError:
+        logging.debug("Exception details for base_config.yaml not found:", exc_info=True)
         logging.warning("未找到 base_config.yaml，跳过。")
 
     # --- 开始处理 (A) 命令行 ---
@@ -113,8 +116,10 @@ def load_app_config():
                 config = deep_merge(env_config, config)
             logging.info(f"加载环境配置 ({args.env_config}) 成功。")
         except FileNotFoundError:
+            logging.debug(f"Exception details for --env-config file not found: {args.env_config}", exc_info=True)
             logging.error(f"指定的--env-config文件未找到: {args.env_config}")
         except Exception as e:
+            logging.debug("Exception details for loading --env-config file:", exc_info=True)
             logging.error(f"加载--env-config文件失败: {e}")
     else:
         logging.info("未指定 --env-config，跳过环境配置。")

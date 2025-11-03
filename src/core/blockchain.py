@@ -153,6 +153,7 @@ class Blockchain:
         
         new_tip_info = self.block_index.get_header_info(new_chain_tip_block.hash())
         if not new_tip_info:
+            log.debug("Exception details: Could not find header info for the new chain tip during reorganization.", exc_info=True)
             log.error("Could not find header info for the new chain tip during reorganization.")
             return False
 
@@ -161,6 +162,7 @@ class Blockchain:
         )
 
         if not ancestor_hash:
+            log.debug("Exception details: Reorganization failed: Could not find a common ancestor.", exc_info=True)
             log.error("Reorganization failed: Could not find a common ancestor.")
             return False
 

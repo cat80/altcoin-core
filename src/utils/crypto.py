@@ -63,7 +63,8 @@ def verify_signature(data: bytes, signature: bytes, public_key: ecdsa.VerifyingK
         return public_key.verify(signature, data_hash)
     except ecdsa.BadSignatureError:
         return False
-    except Exception as  ex:
+    except Exception as ex:
+        log.debug("Exception details during signature verification:", exc_info=True)
         raise ex
 
 
@@ -124,6 +125,7 @@ def is_validate_address(address: str, version: bytes = ADDRESS_VERSION) -> bool:
         return checksum_from_address == calculated_checksum
 
     except Exception:
+        log.debug("Exception details during address validation:", exc_info=True)
         # 任何解码或格式错误都视为无效地址
         return False
 

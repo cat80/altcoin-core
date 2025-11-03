@@ -37,7 +37,7 @@ class Peer:
         """用于广播和存入 AddrMan"""
         return {
             "node_id": self.node_id,
-            "ip": self.connectable_ip,
+            "host": self.connectable_ip,
             "port": self.connectable_port
         }
 
@@ -53,12 +53,13 @@ class Peer:
                 if message is None:
                     log.info(f"Connection to {self.node_id} @ {addr} closed.")
                     break
-
+                log.debug(f'recv from-{self.get_connection_info()}\n{message}')
                 await self.event_bus.publish('network_message_received', self, message)
 
         except asyncio.CancelledError:
             log.debug(f"Message loop for {self.node_id} cancelled.")
         except Exception as e:
+            log.debug(f"Exception details for message loop for {self.node_id} @ {addr}:", exc_info=True)
             log.error(f"Message loop for {self.node_id} @ {addr} error: {e}")
         finally:
             await self.peer_manager.remove_peer(self)
@@ -70,6 +71,7 @@ class Peer:
             self.writer.write(message_bytes)
             await self.writer.drain()
         except Exception as e:
+            log.debug(f"Exception details for sending message to {self.node_id}:", exc_info=True)
             log.error(f"Failed to send message to {self.node_id}: {e}")
             await self.peer_manager.remove_peer(self)
 
@@ -82,4 +84,5 @@ class Peer:
                 self.writer.close()
                 await self.writer.wait_closed()
             except Exception as e:
+                log.debug(f"Exception details while closing writer for {self.node_id}:", exc_info=True)
                 log.warning(f"Error while closing writer for {self.node_id}: {e}")

@@ -1,3 +1,4 @@
+import logging
 import struct
 import io
 import json
@@ -11,7 +12,7 @@ NETWORK_MAGIC_HEADER = b'\xab\xcd\xef\x88'
 HEADER_FORMAT = '<4s4sI'
 HEADER_LEN = struct.calcsize(HEADER_FORMAT)
 
-
+log = logging.getLogger(__name__)
 
 class protocol():
 
@@ -36,7 +37,7 @@ class protocol():
                 buffer = buffer[idx:]
             if len(buffer) > HEADER_LEN:
                 break
-            chuck = await io_stream.read(1024)
+            chuck = await io_stream.read(9024)
             # log.debug(f'buffer len:{len(buffer)}')
             if not chuck:
                 return None,b''
@@ -46,7 +47,8 @@ class protocol():
         while len(buffer) < payload_len:
             chuck = await io_stream.read(payload_len - len(buffer))
             if not chuck:
-                raise Exception('连接失败未获取到数据')
+                log.debug("Exception details: Connection failed, no data received.", exc_info=True)
+                raise Exception('连接失败未获取到数据') # 保持原有异常抛出，但增加日志
             buffer += chuck
         payload = (buffer[:payload_len]).decode('utf8')
         remaing_data = buffer[payload_len:]

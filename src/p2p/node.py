@@ -4,6 +4,10 @@ import logging
 from .peer_manager import PeerManager
 # init log
 log  = logging.getLogger(__name__)
+
+PEER_ACTIVE_COUNT = 50 # 节点的活跃数
+
+
 class P2PNode:
     def __init__(self, peer_manager: PeerManager, seed_nodes: list):
         self.peer_manager = peer_manager
@@ -27,6 +31,10 @@ class P2PNode:
         async with self.server:
             await self.server.serve_forever()
 
+    async def __maintain_connection_loop(self):
+        # 连接管理
+
+        pass
     async def on_incoming_connection(self, reader, writer):
         """[回调] 当有新连接进来时"""
         addr = writer.get_extra_info('peername')
@@ -47,4 +55,4 @@ class P2PNode:
                 reader, writer, is_initiator=True
             )
         except Exception as e:
-            log.debug(f"Failed to connect to {host}:{port}: {e}")
+            log.debug(f"Exception details for failed to connect to {host}:{port}: {e}", exc_info=True)
