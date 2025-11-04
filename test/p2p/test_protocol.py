@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import Mock, patch, AsyncMock
 import asyncio
-from src.p2p.protocol import protocol
+import json
+import struct
+from src.p2p.protocol import protocol, NETWORK_MAGIC_HEADER, HEADER_FORMAT
 
 
 class TestProtocol(unittest.TestCase):
@@ -31,18 +33,41 @@ class TestProtocol(unittest.TestCase):
         self.assertGreater(len(result), 0)
         self.assertIn(b'empty_msg', result)
 
+    def test_serialize_message_structure(self):
+        """测试消息序列化结构"""
+        payload_data = {'test': 'data'}
+        result = protocol.serialize_message('test_type', payload_data)
+        
+        # 验证头部存在
+        self.assertTrue(result.startswith(NETWORK_MAGIC_HEADER))
+        
+        # 解析头部
+        header_size = struct.calcsize(HEADER_FORMAT)
+        magic, checksum, payload_len = struct.unpack(HEADER_FORMAT, result[:header_size])
+        
+        # 验证头部字段
+        self.assertEqual(magic, NETWORK_MAGIC_HEADER)
+        self.assertEqual(checksum, b'\x00\x00\x00\x00')
+        self.assertEqual(payload_len, len(result[header_size:]))
+        
+        # 验证载荷
+        payload = json.loads(result[header_size:].decode('utf8'))
+        self.assertEqual(payload['type'], 'test_type')
+        self.assertEqual(payload['payload'], payload_data)
 
     def test_create_ping(self):
         """测试创建ping消息"""
         ping_msg = protocol.create_ping()
         self.assertIsInstance(ping_msg, bytes)
         self.assertGreater(len(ping_msg), 0)
+        self.assertIn(b'ping', ping_msg)
 
     def test_create_pong(self):
         """测试创建pong消息"""
         pong_msg = protocol.create_pong()
         self.assertIsInstance(pong_msg, bytes)
         self.assertGreater(len(pong_msg), 0)
+        self.assertIn(b'pong', pong_msg)
 
     def test_create_payload(self):
         """测试创建自定义载荷消息"""

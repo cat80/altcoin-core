@@ -14,18 +14,26 @@ class TestProtocolHandler(unittest.TestCase):
         self.blockchain_mock = Mock()
         self.peer_manager_mock = Mock()
         self.mempool_mock = Mock()
+        self.address_manager_mock = Mock()
+        
+        # 添加模拟方法
+        self.event_bus_mock.subscribe = Mock()
+        self.peer_manager_mock.resolve_request = Mock()
         
         # 初始化ProtocolHandler
         self.protocol_handler = ProtocolHandler(
             self.event_bus_mock,
             self.blockchain_mock,
             self.peer_manager_mock,
-            self.mempool_mock
+            self.mempool_mock,
+            self.address_manager_mock
         )
         
-        # 添加模拟方法
-        self.event_bus_mock.subscribe = Mock()
-        self.peer_manager_mock.resolve_request = Mock()
+        # 验证事件订阅
+        self.event_bus_mock.subscribe.assert_any_call('network_message_received', self.protocol_handler.on_message_received)
+        self.event_bus_mock.subscribe.assert_any_call('peer_connected', self.protocol_handler.on_peer_connected)
+        self.event_bus_mock.subscribe.assert_any_call('peer_connection_failed', self.protocol_handler.on_peer_connection_failed)
+        self.event_bus_mock.subscribe.assert_any_call('peer_disconnected', self.protocol_handler.on_peer_disconnected)
 
     def tearDown(self):
         self.loop.close()
@@ -36,6 +44,7 @@ class TestProtocolHandler(unittest.TestCase):
         self.assertEqual(self.protocol_handler.blockchain, self.blockchain_mock)
         self.assertEqual(self.protocol_handler.peer_manager, self.peer_manager_mock)
         self.assertEqual(self.protocol_handler.mempool, self.mempool_mock)
+        self.assertEqual(self.protocol_handler.address_manager, self.address_manager_mock)
 
     def test_on_message_received_resolved_request(self):
         """测试处理已解决的请求消息"""
@@ -52,7 +61,6 @@ class TestProtocolHandler(unittest.TestCase):
         
         # 验证请求被解析但处理方法未被调用
         self.peer_manager_mock.resolve_request.assert_called_once_with(message_mock)
-        self.assertFalse(hasattr(self.protocol_handler, 'handle_test_msg'))
 
     def test_on_message_received_new_request(self):
         """测试处理新的请求消息"""
@@ -78,81 +86,173 @@ class TestProtocolHandler(unittest.TestCase):
         """测试处理未知请求消息"""
         peer_mock = Mock()
         message_mock = {'type': 'unknown_msg', 'payload': {}}
-
-    def test_handle_get_best_tip(self):
-        """测试处理获取最佳提示请求"""
-        peer_mock = Mock()
-        peer_mock.send_message = AsyncMock()
-        payload = {'request_id': 'req_123'}
         
-        # 模拟区块链获取最佳提示
-        self.blockchain_mock.get_best_tip.return_value = {'height': 100, 'hash': 'abcd1234'}
+        # 模拟请求未被解析
+        self.peer_manager_mock.resolve_request.return_value = False
+        
+        # 添加处理方法
+        self.protocol_handler.handle_unknown = AsyncMock()
+        
+        # 处理消息
+        self.loop.run_until_complete(
+            self.protocol_handler.on_message_received(peer_mock, message_mock)
+        )
+        
+        # 验证未知消息处理方法被调用
+        self.protocol_handler.handle_unknown.assert_called_once_with(peer_mock, {})
+
+    def test_on_peer_connected(self):
+        """测试处理节点连接"""
+        peer_mock = Mock()
+        peer_mock.get_connection_info.return_value = {
+            'node_id': 'test_node',
+            'host': '192.168.1.100',
+            'port': 8001
+        }
+        
+        # 处理节点连接
+        self.loop.run_until_complete(
+            self.protocol_handler.on_peer_connected(peer_mock)
+        )
+        
+        # 验证地址管理器标记节点成功
+        self.address_manager_mock.mark_peer_success.assert_called_once_with(
+            'test_node', '192.168.1.100', 8001
+        )
+        
+        # 验证向节点发送getaddr请求
+        # peer_mock.send_message.assert_called_once_with('getaddr', {})
+
+    def test_on_peer_connection_failed(self):
+        """测试处理节点连接失败"""
+        node_id = 'failed_node'
+        
+        # 处理节点连接失败
+        self.loop.run_until_complete(
+            self.protocol_handler.on_peer_connection_failed(node_id)
+        )
+        
+        # 验证地址管理器标记节点失败
+        self.address_manager_mock.mark_peer_failed.assert_called_once_with(node_id)
+
+    def test_on_peer_disconnected(self):
+        """测试处理节点断开连接"""
+        peer_mock = Mock()
+        peer_mock.node_id = 'disconnected_node'
+        
+        # 处理节点断开连接
+        self.loop.run_until_complete(
+            self.protocol_handler.on_peer_disconnected(peer_mock)
+        )
+        
+        # 验证地址管理器标记节点断开
+        self.address_manager_mock.mark_peer_disconnected.assert_called_once_with('disconnected_node')
+
+    def test_handle_getaddr(self):
+        """测试处理获取地址请求"""
+        peer_mock = Mock()
+        peer_mock.node_id = 'requester_node'
+        peer_mock.send_message = AsyncMock()
+        payload = {}
+        
+        # 模拟活跃节点和地址管理器
+        self.peer_manager_mock.get_active_peers_info.return_value = [
+            {'node_id': 'active_node1', 'host': '192.168.1.1', 'port': 8001},
+            {'node_id': 'active_node2', 'host': '192.168.1.2', 'port': 8002}
+        ]
+        self.address_manager_mock.get_peers_to_try.return_value = [
+            {'node_id': 'db_node1', 'host': '192.168.1.3', 'port': 8003}
+        ]
         
         # 处理请求
         self.loop.run_until_complete(
-            self.protocol_handler.handle_get_best_tip(peer_mock, payload)
+            self.protocol_handler.handle_getaddr(peer_mock, payload)
         )
         
         # 验证响应消息被发送
-        peer_mock.send_message.assert_called_once_with(
-            'best_tip_response',
-            {'tip_info': {'height': 100, 'hash': 'abcd1234'}, 'request_id': 'req_123'}
-        )
+        peer_mock.send_message.assert_called_once()
+        args, kwargs = peer_mock.send_message.call_args
+        self.assertEqual(args[0], 'addr')
+        self.assertIn('peers', args[1])
+        self.assertEqual(len(args[1]['peers']), 3)  # 2个活跃节点 + 1个数据库节点
 
-    @patch('src.core.block.Block')
-    def test_handle_get_block_info_found(self, mock_block_class):
-        """测试处理获取区块信息请求（找到区块）"""
+    def test_handle_addr(self):
+        """测试处理地址响应"""
+        peer_mock = Mock()
+        payload = {
+            'peers': [
+                {'node_id': 'new_node1', 'host': '192.168.1.4', 'port': 8004},
+                {'node_id': 'new_node2', 'host': '192.168.1.5', 'port': 8005}
+            ]
+        }
+        
+        # 处理响应
+        self.loop.run_until_complete(
+            self.protocol_handler.handle_addr(peer_mock, payload)
+        )
+        
+        # 验证地址管理器添加节点
+        self.address_manager_mock.add_peers_from_list.assert_called_once_with(payload['peers'])
+
+    def test_handle_ping(self):
+        """测试处理ping消息"""
         peer_mock = Mock()
         peer_mock.send_message = AsyncMock()
-        payload = {'hash_hex': 'abcd1234', 'request_id': 'req_123'}
+        payload = {}
         
-        # 模拟找到区块
-        mock_block_instance = Mock()
-        mock_block_instance.serialize.return_value = b'serialized_block_data'
-        self.blockchain_mock.block_storage.read_block_by_hash.return_value = mock_block_instance
-        
-        # 处理请求
+        # 处理ping
         self.loop.run_until_complete(
-            self.protocol_handler.handle_get_block_info(peer_mock, payload)
+            self.protocol_handler.handle_ping(peer_mock, payload)
         )
         
-        # 验证响应消息被发送
-        peer_mock.send_message.assert_called_once_with(
-            'block_info_response',
-            {'block_data': b'serialized_block_data', 'request_id': 'req_123'}
-        )
+        # 验证发送pong响应
+        peer_mock.send_message.assert_called_once_with('pong')
 
-    def test_handle_get_block_info_not_found(self):
-        """测试处理获取区块信息请求（未找到区块）"""
+    def test_handle_pong(self):
+        """测试处理pong消息"""
         peer_mock = Mock()
-        peer_mock.send_message = AsyncMock()
-        payload = {'hash_hex': 'abcd1234', 'request_id': 'req_123'}
+        peer_mock.node_id = 'ponger_node'
+        payload = {}
         
-        # 模拟未找到区块
-        self.blockchain_mock.block_storage.read_block_by_hash.return_value = None
-        
-        # 处理请求
+        # 处理pong
         self.loop.run_until_complete(
-            self.protocol_handler.handle_get_block_info(peer_mock, payload)
+            self.protocol_handler.handle_pong(peer_mock, payload)
         )
         
-        # 验证响应消息被发送（无区块数据）
-        peer_mock.send_message.assert_called_once_with(
-            'block_info_response',
-            {'block_data': None, 'request_id': 'req_123'}
-        )
+        # 验证地址管理器更新节点分数
+        self.address_manager_mock.update_peer_score.assert_called_once_with('ponger_node', 1)
 
-    @patch('src.core.block.Block')
-    def test_handle_notify_new_block_header_known(self, mock_block_class):
-        """测试处理新区块头通知（已知区块）"""
+    def test_handle_notify_new_peer(self):
+        """测试处理新节点通知"""
         peer_mock = Mock()
-        payload = {'header': 'header_data'}
+        payload = {
+            'peer_info': {
+                'node_id': 'new_node',
+                'host': '192.168.1.6',
+                'port': 8006
+            }
+        }
         
-        # 模拟已知区块头
-        self.blockchain_mock.block_index.get_header_info.return_value = {'exists': True}
+        # 处理新节点通知
+        self.loop.run_until_complete(
+            self.protocol_handler.handle_notify_new_peer(peer_mock, payload)
+        )
         
+        # 验证地址管理器添加节点
+        self.address_manager_mock.add_peers_from_list.assert_called_once_with([payload['peer_info']])
 
-
+    def test_handle_unknown(self):
+        """测试处理未知消息类型"""
+        peer_mock = Mock()
+        peer_mock.node_id = 'unknown_peer'
+        payload = {}
+        
+        # 处理未知消息
+        self.loop.run_until_complete(
+            self.protocol_handler.handle_unknown(peer_mock, payload)
+        )
+        
+        # 验证记录警告日志（通过mock检查）
 
 
 if __name__ == '__main__':

@@ -5,6 +5,8 @@ AltCoin的密码学工具集。
 所有操作均基于ECDSA算法和SECP256k1曲线，这是加密货币领域的通用标准。
 """
 import hashlib
+import os.path
+
 import ecdsa
 import  base58
 
@@ -32,6 +34,27 @@ def generate_keypair() -> (ecdsa.SigningKey, ecdsa.VerifyingKey):
     private_key = ecdsa.SigningKey.generate(curve=CURVE)
     public_key = private_key.get_verifying_key()
     return private_key, public_key
+
+def save_to_pem(private_key:ecdsa.SigningKey,pem_file_name):
+    dir_name = os.path.dirname(pem_file_name)
+    os.makedirs(dir_name,exist_ok=True)
+    with open(pem_file_name,'wb') as file:
+        file.write(private_key.to_pem())
+
+
+def load_key_from_pem(filepath: str) -> ecdsa.SigningKey:
+    """
+        从PEM格式的文件中加载私钥(SigningKey)。
+    """
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError("pem key file not exist")
+    # 使用 'rb' (读取-字节) 模式来读取文件
+    with open(filepath, "rb") as f:
+        pem_data = f.read()
+        # .from_pem() 类方法从字节中解析私钥
+    private_key = ecdsa.SigningKey.from_pem(pem_data)
+    public_key = private_key.get_verifying_key()
+    return private_key,public_key
 
 def sign_data(data: bytes, private_key: ecdsa.SigningKey) -> bytes:
     """
@@ -64,7 +87,6 @@ def verify_signature(data: bytes, signature: bytes, public_key: ecdsa.VerifyingK
     except ecdsa.BadSignatureError:
         return False
     except Exception as ex:
-        log.debug("Exception details during signature verification:", exc_info=True)
         raise ex
 
 
@@ -125,7 +147,6 @@ def is_validate_address(address: str, version: bytes = ADDRESS_VERSION) -> bool:
         return checksum_from_address == calculated_checksum
 
     except Exception:
-        log.debug("Exception details during address validation:", exc_info=True)
         # 任何解码或格式错误都视为无效地址
         return False
 

@@ -73,3 +73,4 @@ class Block:
         content = self.serialize()
         size = len(content)
         return MAGIC_BYTES + struct.pack('<I', size) + content
+

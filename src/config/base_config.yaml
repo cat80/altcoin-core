@@ -1,7 +1,7 @@
 p2p:
   data_dir: "/home/cat80/p2p-default-1989"
   listen_port: 1989
-  coinbase_address: "aaa"
+  coinbase_address: "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb"
   peer_nodes:
     - host: "127.0.0.1"
       port: 1989

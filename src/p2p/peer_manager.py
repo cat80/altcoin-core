@@ -149,29 +149,36 @@ class PeerManager:
 
     async def on_new_block_validated(self, block):
         """事件订阅示例：自动广播新区块头"""
-        pass # 暂时禁用
+        # 现在把完整的区块广播出去，应该只广播头
+        log.debug('发现新区域，开始广播区块内容')
+        block_hex = block.serialize().hex()
+        await self.broadcast("notify_new_block",{
+            "block":block_hex
+        })
 
     async def _maintenance_loop(self):
         """
         后台任务，定期维护节点连接数和数据库。
         """
+        # 首次进来延迟5秒
+        await asyncio.sleep(5)
         while True:
-            await asyncio.sleep(60) # 每分钟检查一次
             try:
                 # 1. 维护连接数
                 active_peers_count = len(self.peers)
                 if active_peers_count < 50: # 目标连接数
                     num_to_connect = 50 - active_peers_count
                     log.info(f"连接数 ({active_peers_count}) 低于目标值，尝试连接 {num_to_connect} 个新节点")
-                    
+                    # 排除自身
+                    active_ids = self.get_active_node_ids()
+                    active_ids.add(self.my_node_id)
                     peers_to_try = self.address_manager.get_peers_to_try(
                         limit=num_to_connect,
-                        exclude_ids=self.get_active_node_ids()
+                        exclude_ids=active_ids
                     )
-                    
                     for peer_info in peers_to_try:
                         asyncio.create_task(
-                            self.node.initiate_outgoing_connection(peer_info['host'], peer_info['port'])
+                            self.node.initiate_outgoing_connection(peer_info['host'], peer_info['port'],peer_info['node_id'])
                         )
 
                 # 2. 清理数据库
@@ -181,3 +188,5 @@ class PeerManager:
             except Exception as e:
                 log.debug("Exception details for _maintenance_loop:", exc_info=True)
                 log.error(f"节点维护任务出错: {e}")
+
+            await asyncio.sleep(60)  # 每分钟检查一次

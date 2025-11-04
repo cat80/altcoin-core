@@ -51,6 +51,22 @@ class TestEventBus(unittest.TestCase):
         # 验证两个回调都被调用
         callback1.assert_called_once_with('data')
         callback2.assert_called_once_with('data')
+        
+    def test_publish_with_exception_in_callback(self):
+        """测试当回调函数抛出异常时的处理"""
+        callback1 = AsyncMock(side_effect=Exception("Callback error"))
+        callback2 = AsyncMock()
+        
+        self.event_bus.subscribe('error_event', callback1)
+        self.event_bus.subscribe('error_event', callback2)
+        
+        # 即使有回调抛出异常，其他回调也应该被执行
+        self.loop.run_until_complete(
+            self.event_bus.publish('error_event', 'data')
+        )
+        
+        callback1.assert_called_once_with('data')
+        callback2.assert_called_once_with('data')
 
 
 if __name__ == '__main__':

@@ -3,7 +3,9 @@ import logging
 from sqlalchemy import Column, Integer, TEXT
 from sqlalchemy.orm import Session
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper, Base
+from config import  setup_logging
 
+setup_logging()
 log = logging.getLogger(__name__)
 
 # ==========================================================
@@ -33,7 +35,8 @@ class KnownPeer(Base):
         return {
             "node_id": self.node_id,
             "host": self.host,
-            "port": self.port
+            "port": self.port,
+            'score':self.score
         }
 
 # ==========================================================
@@ -63,7 +66,9 @@ class AddressManager:
     def get_all_peers(self):
         with self._get_session() as session:
             return [ item.to_dict() for item in  session.query(KnownPeer).all()]
-
+    def get_record_count(self):
+        with self._get_session() as session:
+            return session.query(KnownPeer).count()
     def get_peers_to_try(self, limit: int, exclude_ids: set = None) -> list[dict]:
         """
         从数据库获取“好”节点列表，用于启动时或需要更多连接时。
@@ -108,6 +113,7 @@ class AddressManager:
                             "score": 10  # 初始分数
                         }
                         session.merge(KnownPeer(**peer_data))
+                        session.commit()
                         log.debug(f"AddrMan: Created and marked success for new peer {node_id}")
                     # 如果不是成功事件，且节点不存在，则无需操作
                     return
@@ -137,9 +143,9 @@ class AddressManager:
         """(重要) 当握手成功时调用此方法。"""
         self.update_peer_score(node_id, 10, is_success=True, ip=ip, port=port)
 
-    def mark_peer_failed(self, node_id: str):
+    def mark_peer_failed(self, connect_info: str):
         """当连接尝试失败时调用此方法。"""
-        self.update_peer_score(node_id, -10)
+        self.update_peer_score(connect_info, -10)
 
     def mark_peer_disconnected(self, node_id: str):
         """当连接断开时调用此方法。"""

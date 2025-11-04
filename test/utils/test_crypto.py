@@ -137,6 +137,16 @@ class TestCrypto(unittest.TestCase):
         print('python version is:',sys.version)
         print('platform version is:',platform.system())
 
+    def test_paris_use(self):
+
+        pem_file = '/mnt/d/prj/web3/altcoin-core/test/tmp/test.pem'
+        sk1 ,pk1 = generate_keypair()
+        save_to_pem(sk1,pem_file)
+
+        sk2,pk2 = load_key_from_pem(pem_file)
+
+        print(sk1,sk2)
+        print(pk1, pk2)
     def test_get_pars_and_address(self):
         privek,pubk=generate_keypair()
         addr = get_address_by_public_key(pubk)

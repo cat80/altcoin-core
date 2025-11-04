@@ -9,9 +9,8 @@ PEER_ACTIVE_COUNT = 50 # 节点的活跃数
 
 
 class P2PNode:
-    def __init__(self, peer_manager: PeerManager, seed_nodes: list):
+    def __init__(self, peer_manager: PeerManager=None):
         self.peer_manager = peer_manager
-        self.seed_nodes = seed_nodes
         self.server = None
 
     async def start(self, host: str, port: int):
@@ -21,18 +20,9 @@ class P2PNode:
         )
         log.debug(f"Node listening on {host}:{port}")
 
-        # 2. 异步启动客户端，主动连接到种子节点
-        for node in self.seed_nodes:
-            asyncio.create_task(
-                self.initiate_outgoing_connection(node['host'], node['port'])
-            )
-
         # 保持服务器运行
         async with self.server:
             await self.server.serve_forever()
-
-    async def __maintain_connection_loop(self):
-        # 连接管理
 
         pass
     async def on_incoming_connection(self, reader, writer):
@@ -44,7 +34,7 @@ class P2PNode:
             reader, writer, is_initiator=False
         )
 
-    async def initiate_outgoing_connection(self, host: str, port: int):
+    async def initiate_outgoing_connection(self, host: str, port: int,node_id = None):
         """[任务] 主动连接到其他节点"""
         try:
             reader, writer = await asyncio.open_connection(host, port)
@@ -54,5 +44,8 @@ class P2PNode:
             await self.peer_manager.start_handshake(
                 reader, writer, is_initiator=True
             )
+        except ConnectionRefusedError as ce:
+            await self.peer_manager.event_bus.publish('peer_connection_failed',node_id)
+            log.info(f'连接节点,{host}:{port}失败')
         except Exception as e:
             log.debug(f"Exception details for failed to connect to {host}:{port}: {e}", exc_info=True)

@@ -68,8 +68,8 @@ class Blockchain:
         """
         if self.block_index.get_tip() is None:
             # 创世区块定义
-            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), int(time.time()), 0x1e097dea, 2083236893)
-            coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(b'30/Sep/2025. Failed to HODL the last cycle, I realized the only way to win was to code my own coin.')], [TxOut(INITIAL_BLOCK_REWARD, b'1CjFwRdfSTjbzENgrvstqSfXX1vHRe4RVM')], 0)
+            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), int(time.time()), INITIAL_BITS, 2083236893)
+            coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(b'30/Sep/2025. Failed to HODL the last cycle, I realized the only way to win was to code my own coin.')], [TxOut(INITIAL_BLOCK_REWARD, b'12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb')], 0)
             genesis_block = Block(genesis_header, [coinbase_tx])
 
             # 验证并存储创世区块

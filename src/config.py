@@ -22,17 +22,10 @@ def deep_merge(source: dict, destination: dict) -> dict:
     return destination
 
 
-def setup_logging(config_path='logging_config.yaml'):
+def setup_logging(config_path='logging_config.yaml', log_filename=None):
     """
     (1) 自动加载日志配置
     """
-    # 确保日志目录存在
-    log_dir = "logs"
-    if not os.path.exists(log_dir):
-        try:
-            os.makedirs(log_dir)
-        except OSError as e:
-            print(f"警告: 无法创建日志目录 {log_dir}. {e}")
     try:
         if not os.path.isfile(config_path):
             # 如果指定日志配置不存在，则查找当前文件config/logging_config.yaml
@@ -40,6 +33,12 @@ def setup_logging(config_path='logging_config.yaml'):
             config_path = os.path.join(current_dir,'config/logging_config.yaml')
         with open(config_path, 'r', encoding='utf-8') as f:
             log_config = yaml.safe_load(f.read())
+            filename = log_config['handlers']['file']['filename']
+            if log_filename:
+                filename = log_filename
+            dir_name = os.path.dirname(filename)
+            os.makedirs(dir_name,exist_ok=True)
+            log_config['handlers']['file']['filename'] = filename
             logging.config.dictConfig(log_config)
         logging.info(f"日志系统配置成功。加载配置:{config_path}")
 
@@ -148,7 +147,16 @@ REWARD_CUTOFF_BLOCKS = 2100000 # 每210万个区块减半
 ADJUSTMENT_INTERVAL = 10080
 TARGET_TIMESPAN = 10080 * 60  # 一周的秒数
 # INITIAL_BITS = 2083236893 503497599
-INITIAL_BITS =  503842407
+
+# ======== 期望挖矿时间: 1分钟 ========
+# 所需难度 (Difficulty): 0.026665
+# 计算出的 Bits: 488997010 (0x1d258092)
+# 对应的 Target (目标哈希): 0x00000025809258f7121a00000000000000000000000000000000000000000000
+# 488997010 一分钟
+# 503842407 10秒
+# 491618097 大概30秒 测试前要调整难度
+INITIAL_BITS = 491618097
+#INITIAL_BITS =  503842407
 # 定义区块状态的常量
 BLOCK_STATUS_VALID = 1  # 表示区块头和内容都已完全验证
 BLOCK_STATUS_FORK = 0 # 表示区块为侧链

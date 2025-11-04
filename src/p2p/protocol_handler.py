@@ -1,3 +1,5 @@
+import asyncio
+import io
 import logging
 
 from .event_bus import EventBus
@@ -6,7 +8,8 @@ from .peer import Peer
 from core.blockchain import Blockchain
 from mempool.mempool import Mempool
 from .address_manager import AddressManager
-
+from core import Block
+import asyncio
 log = logging.getLogger(__name__)
 
 class ProtocolHandler:
@@ -43,7 +46,7 @@ class ProtocolHandler:
 
         # 2. 主动拉取地址 (PULL)
         log.debug(f"向新节点 {peer.node_id} 发送 'getaddr' 请求")
-        await peer.send_message('getaddr', {})
+        # await peer.send_message('getaddr', {})
 
     async def on_peer_connection_failed(self, node_id: str):
         """[EventBus 调用] 当连接失败时标记节点"""
@@ -98,6 +101,11 @@ class ProtocolHandler:
         log.debug(f"收到 {peer.node_id} 的 'addr' 响应，包含 {len(peers_list)} 个地址")
         self.address_manager.add_peers_from_list(peers_list)
 
+    async def handle_ping(self,peer:Peer,payload):
+        await peer.send_message("pong")
+
+    async def handle_pong(self,peer:Peer,payload):
+        self.address_manager.update_peer_score(peer.node_id,1)
     async def handle_notify_new_peer(self, peer: Peer, payload: dict):
         """处理 'notify_new_peer' 广播：一个新节点"""
         peer_info = payload.get('peer_info')
@@ -116,7 +124,20 @@ class ProtocolHandler:
     async def handle_get_block_info(self, peer: Peer, payload: dict):
         # ...
         pass # 暂时禁用
+    async def handle_notify_new_block(self,peer:Peer,playload:dict):
+        # 处理通知新区块，为了简化直接可取出所有的区块内容
+        block_bytes = bytes.fromhex(playload.get('block'))
+        block_bytes = io.BytesIO(block_bytes)
+        block_info = Block.deserialize(block_bytes)
 
+        # 这里应该直接扔到mempool里面去是发布一recv_new_block事件先这里处理吧。
+        log.debug(f'收到节点:{peer.get_connection_info()}广播的新区块')
+        log.debug(f'区块hex:{block_info.hash().hex()}')
+        if self.blockchain.add_block(block=block_info):
+            log.debug("新区块增加成功.发布区块通知")
+            asyncio.create_task(  self.event_bus.publish("block_validated",block_info))
+        else:
+            log.debug('新区块增加失败...')
     async def handle_notify_new_block_header(self, peer: Peer, payload: dict):
         # ...
         pass # 暂时禁用

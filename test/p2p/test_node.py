@@ -11,13 +11,9 @@ class TestP2PNode(unittest.TestCase):
         
         # 创建模拟对象
         self.peer_manager_mock = Mock()
-        self.seed_nodes = [
-            {'host': '127.0.0.1', 'port': 8001},
-            {'host': '127.0.0.1', 'port': 8002}
-        ]
         
         # 初始化P2PNode
-        self.node = P2PNode(self.peer_manager_mock, self.seed_nodes)
+        self.node = P2PNode(self.peer_manager_mock)
 
     def tearDown(self):
         self.loop.close()
@@ -25,9 +21,39 @@ class TestP2PNode(unittest.TestCase):
     def test_init(self):
         """测试P2PNode初始化"""
         self.assertEqual(self.node.peer_manager, self.peer_manager_mock)
-        self.assertEqual(self.node.seed_nodes, self.seed_nodes)
         self.assertIsNone(self.node.server)
 
+    @patch('asyncio.start_server')
+    def test_start(self, mock_start_server):
+        """测试启动节点服务器"""
+        mock_server = Mock()
+        # 为mock_server添加异步上下文管理器支持
+        mock_server.__aenter__ = AsyncMock(return_value=mock_server)
+        mock_server.__aexit__ = AsyncMock(return_value=None)
+        mock_server.serve_forever = AsyncMock()
+        
+        mock_start_server.return_value = mock_server
+        
+        # 启动节点
+        task = self.loop.create_task(
+            self.node.start('127.0.0.1', 8001)
+        )
+        
+        # 等待一点时间让start_server被调用
+        self.loop.run_until_complete(asyncio.sleep(0.01))
+        
+        # 取消任务以退出无限循环
+        task.cancel()
+        
+        try:
+            self.loop.run_until_complete(task)
+        except asyncio.CancelledError:
+            pass
+        
+        # 验证服务器已启动
+        mock_start_server.assert_called_once_with(
+            self.node.on_incoming_connection, '127.0.0.1', 8001
+        )
 
     @patch('asyncio.open_connection')
     def test_initiate_outgoing_connection_success(self, mock_open_connection):
@@ -56,14 +82,23 @@ class TestP2PNode(unittest.TestCase):
     def test_initiate_outgoing_connection_failure(self, mock_open_connection):
         """测试发起外部连接失败"""
         # 模拟连接失败
-        mock_open_connection.side_effect = Exception("Connection failed")
+        mock_open_connection.side_effect = ConnectionRefusedError("Connection refused")
         
         # 模拟peer manager方法存在
         self.peer_manager_mock.start_handshake = AsyncMock()
+        self.peer_manager_mock.event_bus = Mock()
+        self.peer_manager_mock.event_bus.publish = AsyncMock()
         
+        # 发起连接
+        self.loop.run_until_complete(
+            self.node.initiate_outgoing_connection('127.0.0.1', 8001, 'test_node_id')
+        )
+        
+        # 验证连接尝试和事件发布
+        mock_open_connection.assert_called_once_with('127.0.0.1', 8001)
+        self.peer_manager_mock.event_bus.publish.assert_called_once_with('peer_connection_failed', 'test_node_id')
 
-    @patch('src.p2p.peer_manager.PeerManager')
-    def test_on_incoming_connection(self, mock_peer_manager_class):
+    def test_on_incoming_connection(self):
         """测试处理传入连接"""
         # 创建模拟reader/writer
         mock_reader = Mock()
@@ -72,6 +107,16 @@ class TestP2PNode(unittest.TestCase):
         
         # 模拟peer manager握手
         self.peer_manager_mock.start_handshake = AsyncMock()
+        
+        # 处理传入连接
+        self.loop.run_until_complete(
+            self.node.on_incoming_connection(mock_reader, mock_writer)
+        )
+        
+        # 验证peer manager握手被调用
+        self.peer_manager_mock.start_handshake.assert_called_once_with(
+            mock_reader, mock_writer, is_initiator=False
+        )
 
 if __name__ == '__main__':
     unittest.main()

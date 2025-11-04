@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import List
 import struct
 import io
+from utils.crypto import get_address_by_public_key
 
 from utils.crypto import hash_data, verify_signature, ecdsa, CURVE
 
@@ -163,3 +164,38 @@ class Transaction:
             if not verify_signature(hash_for_signing, signature,public_key ):
                 return False
         return True
+
+    def to_json_text(self):
+        """
+            把当前交易转换为读的json的。
+                未处理，tx_in的value， 这个需要一个完整状态维护
+        :return:
+        """
+        return_json  = {
+            "version": self.version,
+            "is_coinbase":self.is_coinbase(),
+            "tx_ins": [],
+            "tx_outs":[],
+            "lock_time": self.lock_time,
+            "op_return_data":  self.op_return_data
+        }
+        for tx_in in self.tx_ins:
+            address = 'CoinBase'
+
+            if not self.is_coinbase():
+                public_key_bytes = tx_in.unlocking_script[64:]
+                public_key = ecdsa.VerifyingKey.from_string(public_key_bytes, curve=CURVE)
+                address = get_address_by_public_key(public_key)
+            return_json['tx_ins'].append({
+                "prev_tx_hash": tx_in.prev_tx_hash,
+                "prev_tx_out_index": tx_in.prev_tx_out_index,
+                'address': address,
+                "value": 0  # 这里要通过完整的chian才能查到
+            })
+
+        for tx_out in self.tx_outs:
+            return_json['tx_outs'].append({
+                'address': tx_out.locking_script,
+                "value":tx_out.value
+            })
+        return return_json

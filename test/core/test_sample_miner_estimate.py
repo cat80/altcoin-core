@@ -151,7 +151,7 @@ class TestMining(unittest.TestCase):
         print(f"本机单核算力: {hashrate:,.2f} H/s")
 
         # 2. 定义要计算的时间列表
-        times_to_test = [1,3, 5, 10, 60, 600,3600,3600*24]
+        times_to_test = [1,3, 5, 10, 30,60, 600,3600,3600*24]
 
         for desired_seconds in times_to_test:
             print(f"\n======== 期望挖矿时间: {format_time(desired_seconds)} ========")
