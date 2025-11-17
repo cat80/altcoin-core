@@ -152,6 +152,7 @@ class PeerManager:
         # 现在把完整的区块广播出去，应该只广播头
         log.debug('发现新区域，开始广播区块内容')
         block_hex = block.serialize().hex()
+
         await self.broadcast("notify_new_block",{
             "block":block_hex
         })

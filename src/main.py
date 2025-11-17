@@ -61,7 +61,7 @@ async def main():
     addr_db_path = os.path.join(data_dir, 'addr_man.db')
     addr_db_wrapper = SQLAlchemyWrapper(addr_db_path)
     
-    mempool = Mempool(event_bus)
+    mempool = Mempool(event_bus,blockchain)
 
     # --- 解析循环依赖 ---
     # 1. 提前创建 Node 和 AddressManager 的“空”实例

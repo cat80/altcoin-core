@@ -40,6 +40,12 @@ class BlockValidator:
         merkle_root = MerkleTree(tx_hashes).root
         return merkle_root == block.header.merkle_root
 
+    def check_transaction_state(transaction:Transaction,chain_state:ChainState):
+        """
+            验证交易的状态有效
+        :return:
+        """
+
     @staticmethod
     def check_transactions_and_get_fees(transactions: List['Transaction'], utxo_view, block_height: int) -> int:
         """

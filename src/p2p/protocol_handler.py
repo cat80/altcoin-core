@@ -131,10 +131,9 @@ class ProtocolHandler:
         block_info = Block.deserialize(block_bytes)
 
         # 这里应该直接扔到mempool里面去是发布一recv_new_block事件先这里处理吧。
-        log.debug(f'收到节点:{peer.get_connection_info()}广播的新区块')
-        log.debug(f'区块hex:{block_info.hash().hex()}')
+        log.debug(f'新区块hex:{block_info.hash().hex()}，来自节点:{peer.get_connection_info()}')
+
         if self.blockchain.add_block(block=block_info):
-            log.debug("新区块增加成功.发布区块通知")
             asyncio.create_task(  self.event_bus.publish("block_validated",block_info))
         else:
             log.debug('新区块增加失败...')
