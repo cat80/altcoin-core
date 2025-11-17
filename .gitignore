@@ -1,1 +1,25 @@
 /outlogs/
+# Python 字节码和缓存文件
+__pycache__/
+*.py[cod]
+
+# IDE/编辑器 文件（如果使用PyCharm等）
+.idea/
+*.iml
+
+# 操作系统生成的临时文件
+.DS_Store
+Thumbs.db
+
+# 虚拟环境 (Virtual Environment)
+# 通常不需要上传虚拟环境
+.venv/
+env/
+
+# 构建输出和测试文件
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
