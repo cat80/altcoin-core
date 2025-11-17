@@ -58,6 +58,7 @@ async def main():
 
     # 初始化数据库
     blockchain = Blockchain.new_from_data_dir(data_dir)
+
     addr_db_path = os.path.join(data_dir, 'addr_man.db')
     addr_db_wrapper = SQLAlchemyWrapper(addr_db_path)
     

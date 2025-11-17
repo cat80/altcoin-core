@@ -53,7 +53,7 @@ class Peer:
                 if message is None:
                     log.info(f"Connection to {self.node_id} @ {addr} closed.")
                     break
-                log.debug(f'recv from-{self.get_connection_info()}\n{message}')
+                # log.debug(f'recv from-{self.get_connection_info()}\n{message}')
                 await self.event_bus.publish('network_message_received', self, message)
 
         except asyncio.CancelledError:

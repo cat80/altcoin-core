@@ -6,9 +6,6 @@ import sys
 import io
 from unittest.mock import MagicMock
 
-# 添加项目根目录到sys.path，确保可以导入src目录下的模块
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 from core.block_index import BlockIndex
 from core.block_header import BlockHeader
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
@@ -339,6 +336,72 @@ class TestBlockIndex(unittest.TestCase):
         #
         # # 应该返回与初始难度相同的值，因为时间间隔是理想的
         # self.assertEqual(bits, INITIAL_BITS)
+
+    def test_get_locator_hashes(self):
+        """测试生成区块定位器哈希列表"""
+        # 测试空链的情况
+        locator_hashes = self.block_index.get_locator_hashes()
+        self.assertEqual(len(locator_hashes), 0)
+        
+        # 添加创世区块
+        self.block_index.add_header(self.genesis_header, 0, 100.0, 0, 0, BLOCK_STATUS_VALID)
+        
+        # 测试只有创世区块的情况
+        locator_hashes = self.block_index.get_locator_hashes()
+        self.assertEqual(len(locator_hashes), 1)
+        self.assertEqual(locator_hashes[0], self.genesis_header.hash())
+        
+        # 添加更多区块形成一条链
+        prev_hash = self.genesis_header.hash()
+        headers = []
+        for i in range(1, 20):  # 添加19个区块，总共20个区块
+            header = BlockHeader(
+                version=1,
+                prev_block_hash=prev_hash,
+                merkle_root=bytes([i]*32),
+                timestamp=1234567890 + i * 600,
+                bits=INITIAL_BITS,
+                nonce=i * 1000
+            )
+            self.block_index.add_header(header, i, 100.0 + i, 0, i * 100, BLOCK_STATUS_VALID)
+            headers.append(header)
+            prev_hash = header.hash()
+        
+        # 测试有多个区块的情况
+        locator_hashes = self.block_index.get_locator_hashes()
+        self.assertGreater(len(locator_hashes), 0)
+        
+        # 验证第一个哈希是链顶端区块的哈希
+        tip = self.block_index.get_tip()
+        self.assertEqual(locator_hashes[0], tip['block_hash'])
+        
+        # 验证所有返回的哈希都是bytes类型
+        for hash_val in locator_hashes:
+            self.assertIsInstance(hash_val, bytes)
+            self.assertEqual(len(hash_val), 32)  # SHA256哈希长度为32字节
+
+        # 验证定位器哈希列表的生成逻辑（指数回退）
+        # 添加大量区块以测试指数回退逻辑
+        prev_hash = headers[-1].hash()
+        for i in range(20, 200):  # 再添加180个区块
+            header = BlockHeader(
+                version=1,
+                prev_block_hash=prev_hash,
+                merkle_root=bytes([i]*32),
+                timestamp=1234567890 + i * 600,
+                bits=INITIAL_BITS,
+                nonce=i * 1000
+            )
+            self.block_index.add_header(header, i, 100.0 + i, 0, i * 100, BLOCK_STATUS_VALID)
+            prev_hash = header.hash()
+        
+        # 测试长链情况下的定位器生成
+        locator_hashes = self.block_index.get_locator_hashes()
+        self.assertGreater(len(locator_hashes), 10)
+        
+        # 验证第一个哈希是链顶端区块的哈希
+        tip = self.block_index.get_tip()
+        self.assertEqual(locator_hashes[0], tip['block_hash'])
 
 
 if __name__ == '__main__':

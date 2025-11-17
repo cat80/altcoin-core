@@ -23,7 +23,7 @@ class BlockIndex:
         self.sqldb = sqldb
         pass
 
-    def add_header(self, header: BlockHeader, height: int, total_work: float, file_index: int, file_offset: int,status:int=BLOCK_STATUS_INVALID):
+    def add_header(self, header: BlockHeader, height: int, total_work: int, file_index: int, file_offset: int,status:int=BLOCK_STATUS_INVALID):
         """
         添加一个新的区块头到索引中。
         """
@@ -51,7 +51,11 @@ class BlockIndex:
         """
         with self.sqldb.get_session() as session:
             header_model = session.query(BlockHeaderModel).filter_by(block_hash=block_hash).first()
-            return header_model.to_dict() if header_model else None
+            if header_model:
+                header_dict = header_model.to_dict()
+                header_dict['total_work'] =  header_dict['total_work']
+                return header_dict
+            return None
 
     def get_genesis_block(self) -> Optional[dict]:
         """
@@ -59,7 +63,11 @@ class BlockIndex:
         """
         with self.sqldb.get_session() as session:
             genesis_model = session.query(BlockHeaderModel).filter_by(height=0).first()
-            return genesis_model.to_dict() if genesis_model else None
+            if genesis_model:
+                header_dict = genesis_model.to_dict()
+                header_dict['total_work'] = float(header_dict['total_work'])
+                return header_dict
+            return None
 
     
     def get_tip(self) -> Optional[dict]:
@@ -68,7 +76,10 @@ class BlockIndex:
         """
         with self.sqldb.get_session() as session:
             tip_model = session.query(BlockHeaderModel).where(BlockHeaderModel.status == BLOCK_STATUS_VALID).order_by(BlockHeaderModel.total_work.desc(), BlockHeaderModel.height.desc()).first()
-            return tip_model.to_dict() if tip_model else None
+            if tip_model:
+                header_dict = tip_model.to_dict()
+                return header_dict
+            return None
 
     def get_ancestor(self, block_hash: bytes, height: int) -> Optional[dict]:
         """
@@ -131,6 +142,42 @@ class BlockIndex:
 
         return common_ancestor_hash, old_chain_to_rollback, new_chain_to_apply
 
+    def get_locator_hashes(self) -> List[bytes]:
+        """
+        生成用于 getheaders 消息的区块定位器哈希列表。
+        这是一个从链顶端开始，指数级回退的稀疏哈希列表。
+        """
+        locator_hashes = []
+        tip = self.get_tip()
+        if not tip:
+            # 如果连 tip 都没有，就只返回创世区块
+            genesis = self.get_genesis_block()
+            return [genesis['block_hash']] if genesis else []
+
+        step = 1
+        height = tip['height']
+        current_hash = tip['block_hash']
+
+        # 从顶端开始回溯
+        while current_hash:
+            info = self.get_header_info(current_hash)
+            if not info: break
+            
+            locator_hashes.append(info['block_hash'])
+            
+            if len(locator_hashes) > 10: # 添加了10个密集区块后，开始指数级回退
+                step *= 2
+            
+            height = max(0, height - step)
+            ancestor = self.get_ancestor(tip['block_hash'], height)
+            
+            if not ancestor or ancestor['height'] == 0:
+                break
+            current_hash = ancestor['block_hash']
+        # 把创世块加到最后面
+        locator_hashes.append(self.get_genesis_block()["block_hash"])
+        return locator_hashes
+
     def update_block_status(self, block_hash: bytes, status: int):
         """
         更新单个区块的状态。
@@ -170,8 +217,12 @@ class BlockIndex:
             Optional[dict]: 区块信息字典，如果找不到则返回None
         """
         with self.sqldb.get_session() as session:
-            header_model = session.query(BlockHeaderModel).filter_by(height=height).first()
-            return header_model.to_dict() if header_model else None
+            header_model = session.query(BlockHeaderModel).filter_by(height=height,status=BLOCK_STATUS_VALID).first()
+            if header_model:
+                header_dict = header_model.to_dict()
+                header_dict['total_work'] = float(header_dict['total_work'])
+                return header_dict
+            return None
 
     def calculate_required_bits(self, new_block_height: int,previous_header=None) -> int:
         """

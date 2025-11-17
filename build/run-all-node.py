@@ -8,7 +8,7 @@ def start_all():
 
     # 1. 节点配置
     base_port_or_id = 17880  # 你的配置文件起始编号
-    num_nodes = 2  # 你想启动的节点总数
+    num_nodes = 4  # 你想启动的节点总数
 
     # 2. WSL 中的路径配置
     # WSL 中的 Python 解释器路径

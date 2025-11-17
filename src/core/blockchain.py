@@ -68,7 +68,7 @@ class Blockchain:
         """
         if self.block_index.get_tip() is None:
             # 创世区块定义
-            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"), int(time.time()), INITIAL_BITS, 2083236893)
+            genesis_header = BlockHeader(1, b'\x00'*32, bytes.fromhex("4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"),1763384394, INITIAL_BITS, 2083236893)
             coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(b'30/Sep/2025. Failed to HODL the last cycle, I realized the only way to win was to code my own coin.')], [TxOut(INITIAL_BLOCK_REWARD, b'12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb')], 0)
             genesis_block = Block(genesis_header, [coinbase_tx])
 
@@ -76,6 +76,7 @@ class Blockchain:
             file_index, offset = self.block_storage.write_block(genesis_block)
             # 初始工作量计算
             work = 2**256 / (BlockValidator.bits_to_target(genesis_block.header.bits) + 1)
+            work = int(work)
             self.block_index.add_header(genesis_block.header, 0, work, file_index, offset,BLOCK_STATUS_VALID)
             self.chain_state.apply_block(genesis_block)
             log.info("Genesis block created and initialized.")
@@ -103,6 +104,7 @@ class Blockchain:
 
         new_height = prev_header_info['height'] + 1
         work = 2**256 / (BlockValidator.bits_to_target(block.header.bits) + 1)
+        work = int(work)
         new_total_work = prev_header_info['total_work'] + work
 
         # 这里继续检查bits的有效性，确保非法pow bits不被区块接受

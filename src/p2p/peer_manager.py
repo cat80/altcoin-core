@@ -6,6 +6,7 @@ from typing import Dict, Optional
 from .event_bus import EventBus
 from .peer import Peer
 from .protocol import protocol
+from .network_tools import dict_bytes_to_hex
 
 log = logging.getLogger(__name__)
 
@@ -150,13 +151,13 @@ class PeerManager:
     async def on_new_block_validated(self, block):
         """事件订阅示例：自动广播新区块头"""
         # 现在把完整的区块广播出去，应该只广播头
-        log.debug('发现新区域，开始广播区块内容')
-        block_hex = block.serialize().hex()
-
-        await self.broadcast("notify_new_block",{
-            "block":block_hex
-        })
-
+        try:
+            log.debug(f'开始广播新区块,区块高度:{block["height"]}')
+            await self.broadcast("notify_new_block_header",{
+                "header":    dict_bytes_to_hex(block)
+            })
+        except Exception as e:
+            log.debug('广播新区块出错,',exc_info=True)
     async def _maintenance_loop(self):
         """
         后台任务，定期维护节点连接数和数据库。
@@ -190,4 +191,4 @@ class PeerManager:
                 log.debug("Exception details for _maintenance_loop:", exc_info=True)
                 log.error(f"节点维护任务出错: {e}")
 
-            await asyncio.sleep(60)  # 每分钟检查一次
+            await asyncio.sleep(60*5)  # 每五分钟检查一次

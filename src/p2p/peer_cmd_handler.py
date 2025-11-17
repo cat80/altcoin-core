@@ -63,7 +63,7 @@ class PeerCmdHandler:
         self.show_block_info(self.miner.blockchain.get_best_tip())
 
     async def cmd_mc_info(self,txt):
-        # 查询节点主链 [00000019f7a67d94e42a2fd0b261833976eaa621afe097029545a460c4e509bd]-区块高度[10]信息:{'block_hash': b'\x00\x00\x00\x19\xf7\xa6}\x94\xe4*/\xd0\xb2a\x839v\xea\xa6!\xaf\xe0\x97\x02\x95E\xa4`\xc4\xe5\t\xbd', 'prev_block_hash': b'\x00\x00\x00"t\x11P\x8f\xbf\xb3\x10]\x9d\x80\xfd\xa9\x19F\x13\xed\xfc\r)q\x1c\xf98\xd0\x87Fv[', 'merkle_root': b'\xb4L\xf1\x0e\xe4y\x9d\xed\xe2\xd9\xf6\x8f\xd2\xef\xe4\x89\xde\xd7\xd9\xcfL;\xc0a\xc6\x93\xf6\x8f\x18\x95\x9e$', 'timestamp': 1763368232, 'bits': 491618097, 'nonce': 45961944, 'height': 10, 'total_work': 609633107.4121194, 'status': 1, 'file_index': 0, 'file_offset': 2497}
+        # 查询节点主链 [ block_hash  prev_block_hash  merkle_root  00000019f7a67d94e42a2fd0b261833976eaa621afe097029545a460c4e509bd]-区块高度[10]信息:{'block_hash': b'\x00\x00\x00\x19\xf7\xa6}\x94\xe4*/\xd0\xb2a\x839v\xea\xa6!\xaf\xe0\x97\x02\x95E\xa4`\xc4\xe5\t\xbd', 'prev_block_hash': b'\x00\x00\x00"t\x11P\x8f\xbf\xb3\x10]\x9d\x80\xfd\xa9\x19F\x13\xed\xfc\r)q\x1c\xf98\xd0\x87Fv[', 'merkle_root': b'\xb4L\xf1\x0e\xe4y\x9d\xed\xe2\xd9\xf6\x8f\xd2\xef\xe4\x89\xde\xd7\xd9\xcfL;\xc0a\xc6\x93\xf6\x8f\x18\x95\x9e$', 'timestamp': 1763368232, 'bits': 491618097, 'nonce': 45961944, 'height': 10, 'total_work': 609633107.4121194, 'status': 1, 'file_index': 0, 'file_offset': 2497}
         best_tip =  self.miner.blockchain.get_best_tip()
         block_height = best_tip['height']
         block_hash = best_tip['block_hash'].hex()

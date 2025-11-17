@@ -93,7 +93,6 @@ class Miner:
             prev_header_info = self.blockchain.get_best_tip()
             txs = self.mempool.get_local_pack_transactions()
 
-
             new_block = await self.create_next_block(prev_header_info, txs)
             if new_block:
                 log.info('挖矿成功，尝试增加到本地主链')

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, LargeBinary, Float, Index
+from sqlalchemy import create_engine, Column, Integer, TEXT, LargeBinary, Float, Index
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -13,19 +13,14 @@ class BlockHeaderModel(Base):
     prev_block_hash = Column(LargeBinary(32), nullable=False, index=True)
     merkle_root = Column(LargeBinary(32), nullable=False)
     timestamp = Column(Integer, nullable=False)
-    version = Column(Integer, nullable=False,default=1),
+    version = Column(Integer, nullable=False,default=1)
     bits = Column(Integer, nullable=False)
     nonce = Column(Integer, nullable=False)
     height = Column(Integer, nullable=False, index=True)
-    total_work = Column(Float, nullable=False, index=True)
+    total_work = Column(Integer, nullable=False, index=True)
     status = Column(Integer, nullable=False)
     file_index = Column(Integer, nullable=False)
     file_offset = Column(Integer, nullable=False)
-
-    # 添加索引
-    __table_args__ = (
-        Index('idx_prev_block_hash', 'prev_block_hash'),
-    )
 
     def to_dict(self):
         """将模型实例转换为字典，方便使用。"""
