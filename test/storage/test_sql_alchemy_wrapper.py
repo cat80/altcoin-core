@@ -6,7 +6,8 @@ import tempfile
 import shutil
 from sqlalchemy.orm import Session
 log = logging.getLogger(__name__)
-from storage.sql_alchemy_wrapper import SQLAlchemyWrapper, BlockHeaderModel
+from storage.core_models import BlockHeaderModel,CoreBase
+from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 
 
 class TestSQLAlchemyWrapper(unittest.TestCase):
@@ -17,7 +18,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.db_path =     self.temp_dir + "/index.db"
         self.db = SQLAlchemyWrapper(self.db_path)
-        self.db.create_all_tables()
+        self.db.create_all_tables(CoreBase)
         log.debug(f'use db_path:{self.db_path}')
     def tearDown(self):
         """在每个测试方法之后清理临时目录"""
@@ -29,7 +30,6 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
         # 确保数据库实例已正确创建
         self.assertIsNotNone(self.db.engine)
         self.assertIsNotNone(self.db.SessionLocal)
-        self.assertIsNotNone(self.db.Base)
     
     def test_get_session(self):
         """测试获取数据库会话"""
@@ -40,7 +40,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
     def test_create_all_tables(self):
         """测试创建所有表"""
         # 调用创建表的方法
-        self.db.create_all_tables()
+        self.db.create_all_tables(CoreBase)
         
         # 验证数据库文件已创建
         self.assertTrue(os.path.exists(self.db_path))
@@ -48,7 +48,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
     def test_block_header_model_creation(self):
         """测试BlockHeaderModel的创建和基本属性"""
         # 创建表
-        self.db.create_all_tables()
+        self.db.create_all_tables(CoreBase)
         
         # 创建会话
         session: Session = self.db.get_session()
@@ -108,7 +108,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
     def test_block_header_model_to_dict(self):
         """测试BlockHeaderModel的to_dict方法"""
         # 创建表
-        self.db.create_all_tables()
+        self.db.create_all_tables(CoreBase)
         
         # 创建会话
         session: Session = self.db.get_session()
@@ -138,7 +138,7 @@ class TestSQLAlchemyWrapper(unittest.TestCase):
             
             # 验证字典包含所有字段
             expected_keys = {
-                'block_hash', 'prev_block_hash', 'merkle_root', 'timestamp',
+                'block_hash', "version",'prev_block_hash', 'merkle_root', 'timestamp',
                 'bits', 'nonce', 'height', 'total_work', 'status',
                 'file_index', 'file_offset'
             }

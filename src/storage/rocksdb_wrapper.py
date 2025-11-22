@@ -1,3 +1,4 @@
+import os
 import rocksdbpy as rocksdb
 from typing import List
 __global_rocksdb_dict = {}
@@ -5,6 +6,7 @@ class RocksDBWrapper:
     """对RocksDB操作的简单封装，确保数据库连接的正确管理。"""
 
     def __init__(self, db_path):
+        os.makedirs(db_path, exist_ok=True)
         opts = rocksdb.Option()
         opts.create_if_missing (  True)
         self.db :rocksdb.RocksDB = rocksdb.open(db_path, opts)

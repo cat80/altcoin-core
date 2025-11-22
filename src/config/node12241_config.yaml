@@ -1,0 +1,7 @@
+p2p:
+  data_dir: "/mnt/d/prj/web3/altcoin-core/nodes-data/node12241"
+  listen_port: 12241
+  coinbase_address: "bbb"
+  peer_nodes:
+    - host: "127.0.0.1"
+      port: 1989

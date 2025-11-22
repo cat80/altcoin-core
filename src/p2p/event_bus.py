@@ -21,5 +21,9 @@ class EventBus:
             for callback in self.subscribers[event_type]
         ]
 
-        # 并发执行并等待它们完成，即使有异常也继续执行其他任务
+        # 并发执行并等待它们完成
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    def clear_subscriptions(self):
+        """清空所有订阅，主要用于测试场景。"""
+        self.subscribers.clear()

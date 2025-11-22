@@ -1,17 +1,18 @@
 import time
 import logging
 from sqlalchemy import Column, Integer, TEXT
-from sqlalchemy.orm import Session
-from storage.sql_alchemy_wrapper import SQLAlchemyWrapper, Base
+from sqlalchemy.orm import Session,declarative_base
+from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 from config import  setup_logging
 
 setup_logging()
 log = logging.getLogger(__name__)
 
+AddrBase = declarative_base()
 # ==========================================================
 # 1. 数据模型 (Data Model)
 # ==========================================================
-class KnownPeer(Base):
+class KnownPeer(AddrBase):
     """
     AddressManager 的 SQLAlchemy 数据模型。
     使用 node_id 作为主键，以解决 IP 变化的问题。
@@ -52,7 +53,7 @@ class AddressManager:
         # PeerManager.get_active_node_ids() 的回调
         self.get_active_node_ids = active_peers_getter
         # 确保表已创建
-        self.db.create_all_tables()
+        self.db.create_all_tables(AddrBase)
         self.seed_nodes = seed_nodes
         self.init_seeds_node()
         log.info(f"AddressManager 已初始化, 数据库: {db_wrapper.engine.url}")

@@ -6,7 +6,7 @@ block_index.py
 """
 from typing import Optional, List, Tuple
 from core.block_header import BlockHeader
-from storage.sql_alchemy_wrapper import BlockHeaderModel
+from storage.core_models import BlockHeaderModel
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 from config import *
 from utils import bits_to_target,target_to_bits

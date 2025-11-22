@@ -7,7 +7,7 @@ from .event_bus import EventBus
 from .peer import Peer
 from .protocol import protocol
 from .network_tools import dict_bytes_to_hex
-
+from core.transaction import Transaction
 log = logging.getLogger(__name__)
 
 class PeerManager:
@@ -23,10 +23,18 @@ class PeerManager:
 
         self.event_bus.subscribe('block_validated', self.on_new_block_validated)
         self.event_bus.subscribe('peer_connected', self.on_peer_connected_gossip)
-
+        self.event_bus.subscribe('new_tx_validated',self.on_new_tx_validated)
         # 启动后台维护任务
         self.maintenance_task = asyncio.create_task(self._maintenance_loop())
 
+    async def on_new_tx_validated(self,tx:Transaction):
+        # 广播新交易这里简单处理，直接广播所有的交易内容，而不是交易hash
+        if not tx or tx.verify_signature():
+            return
+        log.debug(f'开始广播新交易:{tx.hash().hex()}')
+        # 广播新交易,这里如果新交易来自某个节点,应该当忽略，减少网络风暴，但现在不考虑。
+
+        await self.broadcast('notify_new_tx',{'tx':tx.serialize().hex()})
     def get_active_node_ids(self) -> set:
         """返回当前所有已连接节点的 node_id 集合"""
         return set(self.peers.keys())

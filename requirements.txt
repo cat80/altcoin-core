@@ -3,3 +3,5 @@ base58
 rocksdb-py
 sqlalchemy
 PyYAML
+fastapi
+requests

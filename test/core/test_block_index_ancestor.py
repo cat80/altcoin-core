@@ -1,9 +1,9 @@
 import unittest
 import os
-from src.core.block_header import BlockHeader
-from src.core.block_index import BlockIndex
-from src.storage.sql_alchemy_wrapper import SQLAlchemyWrapper
-
+from core.block_header import BlockHeader
+from core.block_index import BlockIndex
+from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
+from storage.core_models import CoreBase
 # Helper function to create a chain of headers
 def create_header_chain(base_header, length):
     chain = []
@@ -32,7 +32,7 @@ class TestFindCommonAncestor(unittest.TestCase):
             os.remove(self.db_path)
 
         self.sqldb = SQLAlchemyWrapper(self.db_path)
-        self.sqldb.create_all_tables()
+        self.sqldb.create_all_tables(CoreBase)
         self.block_index = BlockIndex(self.sqldb)
         
         # Create a genesis block

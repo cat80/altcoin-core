@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import List
 import struct
 import io
-from utils.crypto import get_address_by_public_key
+from utils.crypto import get_address_by_public_key,sign_data
 
 from utils.crypto import hash_data, verify_signature, ecdsa, CURVE
 
@@ -80,6 +80,7 @@ class Transaction:
     def hash(self) -> bytes:
         """计算并返回这笔交易的哈希ID (TxID)"""
         return hash_data(self.serialize(for_signing=False))
+
 
     def serialize(self, for_signing: bool = False) -> bytes:
         """

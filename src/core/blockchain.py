@@ -18,7 +18,7 @@ from .chain_state import ChainState,ChainStateCacheView
 from .block_validator import BlockValidator
 from .block_storage import BlockStorage
 from config import *
-
+from storage.core_models import CoreBase
 log = logging.getLogger(__name__)
 
 class Blockchain:
@@ -39,7 +39,7 @@ class Blockchain:
         from storage import SQLAlchemyWrapper,RocksDBWrapper
         os.makedirs(data_dir,exist_ok=True)
         sqldb = SQLAlchemyWrapper(os.path.join(data_dir,'index.db'))
-        sqldb.create_all_tables()
+        sqldb.create_all_tables(CoreBase)
         rocks_db = RocksDBWrapper(os.path.join(data_dir,'utxo'))
         chainState = ChainState(rocks_db)
         blockStorage = BlockStorage(os.path.join(data_dir,'block'))

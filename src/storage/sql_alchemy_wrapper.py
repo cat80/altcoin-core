@@ -1,49 +1,31 @@
-from sqlalchemy import create_engine, Column, Integer, TEXT, LargeBinary, Float, Index
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
-
-
-# 先创建Base实例
-Base = declarative_base()
-
-class BlockHeaderModel(Base):
-    __tablename__ = 'block_headers'
-
-    block_hash = Column(LargeBinary(32), primary_key=True)
-    prev_block_hash = Column(LargeBinary(32), nullable=False, index=True)
-    merkle_root = Column(LargeBinary(32), nullable=False)
-    timestamp = Column(Integer, nullable=False)
-    version = Column(Integer, nullable=False,default=1)
-    bits = Column(Integer, nullable=False)
-    nonce = Column(Integer, nullable=False)
-    height = Column(Integer, nullable=False, index=True)
-    total_work = Column(Integer, nullable=False, index=True)
-    status = Column(Integer, nullable=False)
-    file_index = Column(Integer, nullable=False)
-    file_offset = Column(Integer, nullable=False)
-
-    def to_dict(self):
-        """将模型实例转换为字典，方便使用。"""
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
 
 class SQLAlchemyWrapper:
     """
-    对SQLAlchemy的封装，处理SQLite的连接和会话管理。
+    一个通用的 SQLAlchemy 封装类，处理数据库连接和会话管理。
+    它通过依赖注入的方式接收一个 Base，从而可以为任何数据库服务。
     """
 
-
     def __init__(self, db_path: str):
-        # connect_args={'check_same_thread': False} 是SQLite在多线程模式下所必需的
+        """
+        :param db_path: 数据库文件的路径。
+        """
+        # connect_args={'check_same_thread': False} 是 SQLite 在多线程模式下所必需的
         self.engine = create_engine(f'sqlite:///{db_path}', connect_args={'check_same_thread': False})
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        # Base是所有数据模型类的基类
-        self.Base = Base
 
     def get_session(self) -> Session:
         """获取一个新的数据库会话。"""
         return self.SessionLocal()
 
-    def create_all_tables(self):
-        """根据所有继承自Base的模型类，创建数据库表。"""
-        self.Base.metadata.create_all(self.engine)
+    def create_all_tables(self, base):
+        """
+        根据传入的 Base 对象，创建所有相关的数据库表。
+        :param base: 从 declarative_base() 返回的 Base 实例。
+        """
+        base.metadata.create_all(self.engine, checkfirst=True)
+
+    def close(self):
+        """关闭数据库引擎连接，释放所有连接池中的连接。"""
+        self.engine.dispose()

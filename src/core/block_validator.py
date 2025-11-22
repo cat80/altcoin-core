@@ -40,12 +40,75 @@ class BlockValidator:
         merkle_root = MerkleTree(tx_hashes).root
         return merkle_root == block.header.merkle_root
 
-    def check_transaction_state(transaction:Transaction,chain_state:ChainState):
+    @staticmethod
+    def check_tx(transaction: Transaction, utxo_view: ChainState) -> bool:
         """
-            验证交易的状态有效
-        :return:
+        验证单笔非Coinbase交易的有效性（主要用于Mempool）。
+        - 检查UTXO是否存在。
+        - 检查输入总额是否大于等于输出总额。
+        - 验证交易签名。
+        Args:
+            transaction: 待验证的交易。
+            utxo_view: 提供 get_utxo 方法的UTXO视图 (ChainState 或 ChainStateCacheView)。
+        Returns:
+            bool: 如果交易有效则返回 True，否则返回 False。
         """
+        if transaction.is_coinbase():
+            log.warning("check_tx should not be used for coinbase transactions.")
+            return False
 
+        try:
+            # 1. 验证签名
+            if not transaction.verify_signature():
+                log.warning(f"Signature verification failed for transaction {transaction.hash().hex()}")
+                return False
+
+            # 2. 验证输入和输出
+            input_sum = 0
+            for tx_in in transaction.tx_ins:
+                utxo = utxo_view.get_utxo(tx_in)
+                if utxo is None:
+                    log.warning(f"Input UTXO not found for transaction {transaction.hash().hex()}")
+                    return False
+                input_sum += utxo.value
+
+            output_sum = sum(tx_out.value for tx_out in transaction.tx_outs)
+
+            if input_sum < output_sum:
+                log.warning(f"Input sum less than output sum in transaction {transaction.hash().hex()}")
+                return False
+
+        except Exception as e:
+            log.error(f"Error during transaction check {transaction.hash().hex()}: {e}", exc_info=True)
+            return False
+
+        return True
+    @staticmethod
+    def check_non_coinbase_tx_and_get_fee(transactions: List['Transaction'], utxo_view):
+        if not transactions:
+            return 0
+        total_fees = 0
+        for tx in transactions:
+            if tx.is_coinbase():
+                raise ValueError('tx must be non-coinbase tx')
+            input_sum = 0
+            for tx_in in tx.tx_ins:
+                utxo = utxo_view.get_utxo(tx_in)
+                if utxo is None:
+                    raise ValueError(f"Input UTXO not found for transaction {tx.hash().hex()}")
+                input_sum += utxo.value
+
+            output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
+
+            if input_sum < output_sum:
+                raise ValueError(f"Input sum less than output sum in transaction {tx.hash().hex()}")
+
+            total_fees += (input_sum - output_sum)
+
+            # 验证交易签名 (假设verify_signature不需要UTXO信息，如果需要则需调整)
+            if not tx.verify_signature():
+                raise ValueError(f"Signature verification failed for transaction {tx.hash().hex()}")
+        return total_fees
     @staticmethod
     def check_transactions_and_get_fees(transactions: List['Transaction'], utxo_view, block_height: int) -> int:
         """
@@ -73,39 +136,17 @@ class BlockValidator:
             if tx.is_coinbase():
                 raise ValueError("More than one coinbase transaction found.")
 
-        total_fees = 0
-        for tx   in transactions:
-            if not tx.is_coinbase():
-                input_sum = 0
-                for tx_in in tx.tx_ins:
-                    utxo = utxo_view.get_utxo(tx_in)
-                    if utxo is None:
-                        raise ValueError(f"Input UTXO not found for transaction {tx.hash().hex()}")
-                    input_sum += utxo.value
-                
-                output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
-                
-                if input_sum < output_sum:
-                    raise ValueError(f"Input sum less than output sum in transaction {tx.hash().hex()}")
-                
-                total_fees += (input_sum - output_sum)
-                
-                # 验证交易签名 (假设verify_signature不需要UTXO信息，如果需要则需调整)
-                if not tx.verify_signature():
-                    raise ValueError(f"Signature verification failed for transaction {tx.hash().hex()}")
-            else:
-                # 这里需要验证coinbase的tx in 的unscript必须包含当前区块的前缀。以确保coinbase的hash完全不一致。
-                # if tx.tx_ins[0].unlocking_script
-                expected_prefix = str(block_height).encode('utf-8') + b':'
-                coinbase_script = tx.tx_ins[0].unlocking_script
+        # get all trans fee
+        total_fees = BlockValidator.check_non_coinbase_tx_and_get_fee(transactions[1:],utxo_view)
 
-                if not coinbase_script.startswith(expected_prefix):
-                    raise ValueError(f"Coinbase unlocking_script does not start with correct height prefix. "
-                                     f"Expected: {expected_prefix}, Got: {coinbase_script[:len(expected_prefix)]}...")
-                block_reward = BlockValidator.get_block_reward(block_height)
-                coinbase_output_sum = sum(tx_out.value for tx_out in tx.tx_outs)
-                if coinbase_output_sum > block_reward + total_fees:
-                    raise ValueError("Coinbase output value exceeds block reward plus fees.")
+
+        coinbase_tx = transactions[0]
+
+        block_reward = BlockValidator.get_block_reward(block_height)
+        coinbase_output_sum = sum(tx_out.value for tx_out in coinbase_tx.tx_outs)
+
+        if coinbase_output_sum  != block_reward + total_fees:
+            raise ValueError("Coinbase output value must equal block reward plus fees.")
         
         return total_fees
 

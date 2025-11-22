@@ -10,6 +10,7 @@ from mempool.mempool import Mempool
 from typing import Optional
 from core import Block
 import asyncio
+from core.transaction import Transaction
 
 log = logging.getLogger(__name__)
 
@@ -274,7 +275,11 @@ class ProtocolHandler:
         })
 
 
+    async def handle_notify_new_tx(self,peer:Peer, tx:Transaction):
+        log.debug(f'收到节点:{peer.get_connection_info()}，广播新交易:{tx.hash().hex()}')
+        # 发布消息，由mempool订阅处理。
+        await self.event_bus.publish('recv_new_tx',tx)
 
     async def handle_unknown(self, peer: Peer, payload: dict):
         msg_type = peer.node_id
-        log.warning(f"收到来自 {msg_type} 的未知消息类型")
+        log.warning(f"收到来自 {peer.get_connection_info()} 的未知消息类型")

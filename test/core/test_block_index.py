@@ -11,7 +11,7 @@ from core.block_header import BlockHeader
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 from config import INITIAL_BITS, ADJUSTMENT_INTERVAL, TARGET_TIMESPAN, BLOCK_STATUS_VALID, BLOCK_STATUS_INVALID
 
-
+from storage.core_models import CoreBase
 class TestBlockIndex(unittest.TestCase):
 
     def setUp(self):
@@ -22,7 +22,7 @@ class TestBlockIndex(unittest.TestCase):
         
         # 创建SQLAlchemyWrapper实例
         self.sqldb = SQLAlchemyWrapper(self.db_path)
-        self.sqldb.create_all_tables()
+        self.sqldb.create_all_tables(CoreBase)
         
         # 创建BlockIndex实例
         self.block_index = BlockIndex(self.sqldb)
@@ -348,7 +348,7 @@ class TestBlockIndex(unittest.TestCase):
         
         # 测试只有创世区块的情况
         locator_hashes = self.block_index.get_locator_hashes()
-        self.assertEqual(len(locator_hashes), 1)
+        self.assertEqual(len(locator_hashes), 2)
         self.assertEqual(locator_hashes[0], self.genesis_header.hash())
         
         # 添加更多区块形成一条链

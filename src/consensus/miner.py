@@ -56,7 +56,7 @@ class Miner:
         block_height = prev_header_info['height'] +1
         coinbase_unlcking_script_prefix = str(block_height).encode('utf-8') + b':'
         coinbase_data = coinbase_unlcking_script_prefix + self.cionbase_data
-        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(coinbase_data)], [TxOut(BlockValidator.get_block_reward(block_height), self.coinbase_address.encode('utf8'))], lock_time=0)
+        coinbase_tx = Transaction(1, [TxIn.create_coinbase_txin(coinbase_data)], [TxOut(BlockValidator.get_block_reward(block_height) + BlockValidator.check_non_coinbase_tx_and_get_fee(transactions,self.blockchain.chain_state) , self.coinbase_address.encode('utf8'))], lock_time=0)
         # 写入coinbse交易
         transactions.insert(0,coinbase_tx)
 

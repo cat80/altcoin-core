@@ -1,0 +1,7 @@
+p2p:
+  data_dir: "/home/cat80/altcoin-node-12241"
+  listen_port: 12241
+  coinbase_address: "bbb"
+  peer_nodes:
+    - host: "127.0.0.1"
+      port: 12231

@@ -22,8 +22,9 @@ def load_test_app_config(port):
     return {
         'p2p': {
             "data_dir": f"/mnt/d/prj/web3/altcoin-core/nodes-data/node{port}",
+            "rpc_port": 8000 + port % 100, # 为每个节点分配一个RPC端口
             "listen_port": port,
-            "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",
+            # "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",
             "peer_nodes": [
                 {"host": "127.0.0.1", "port": 17890,"node_id":"17890"},
                 {"host": "127.0.0.1", "port": 17880, "node_id": "17880"}
@@ -51,6 +52,7 @@ async def main():
     # 从最终配置中获取参数
     data_dir = app_config['p2p']['data_dir']
     listen_port = app_config['p2p']['listen_port']
+    rpc_port = app_config['p2p']['rpc_port']
     my_coinbase_address = app_config['p2p']['coinbase_address']
 
     # 第三步：实例化所有核心组件
@@ -59,9 +61,14 @@ async def main():
     # 初始化数据库
     blockchain = Blockchain.new_from_data_dir(data_dir)
 
+    # 为 AddressManager 创建数据库
     addr_db_path = os.path.join(data_dir, 'addr_man.db')
     addr_db_wrapper = SQLAlchemyWrapper(addr_db_path)
     
+    # 为索引器和RPC创建独立的数据库
+    indexer_db_path = os.path.join(data_dir, 'indexer.db')
+    indexer_db_wrapper = SQLAlchemyWrapper(indexer_db_path)
+
     mempool = Mempool(event_bus,blockchain)
 
     # --- 解析循环依赖 ---
@@ -93,6 +100,16 @@ async def main():
         address_manager=address_manager
     )
 
+    # 必须在 ProtocolHandler 之后初始化，因为它依赖于 'reorganization_detected' 事件
+    from indexer.block_indexer import BlockIndexer
+    block_indexer = BlockIndexer(
+        event_bus=event_bus,
+        db_wrapper=indexer_db_wrapper, # 使用独立的数据库
+        blockchain=blockchain
+    )
+    #启动索引器检查
+    asyncio.create_task(block_indexer.on_block_validate(None))
+    # await block_indexer.on_block_validate(None)
     miner = Miner(
         event_bus=event_bus,
         blockchain=blockchain,
@@ -103,9 +120,23 @@ async def main():
     # 启动命令检查
     PeerCmdHandler(blockchain,peer_manager,event_bus,address_manager,miner)
 
+    from rpc.rpc_server import RpcServer
+    rpc_server = RpcServer(
+        rpc_port=rpc_port,
+        blockchain=blockchain,
+        mempool=mempool,
+        indexer_db=indexer_db_wrapper # RPC服务查询的是索引数据
+    )
+
+    # 定义索引器
+
     # 第四步：启动节点
     log.info(f"节点 {my_node_id} 开始在端口 {listen_port} 上启动...")
-    await node.start('0.0.0.0', listen_port)
+    # 使用 asyncio.gather 并发运行 P2P 节点和 RPC 服务器
+    await asyncio.gather(
+        node.start('0.0.0.0', listen_port),
+        rpc_server.run()
+    )
 
 
 if __name__ == "__main__":

@@ -23,3 +23,4 @@ build/
 .mypy_cache/
 .coverage
 htmlcov/
+/doc/draft/
