@@ -18,6 +18,7 @@ class Block:
     header: BlockHeader
     transactions: List[Transaction]
 
+
     @classmethod
     def create_new(cls, prev_block_hash: bytes, transactions: List[Transaction], bits: int) -> 'Block':
         """
@@ -49,6 +50,9 @@ class Block:
         """计算并返回该区块的哈希。"""
         return self.header.hash()
 
+    def get_size(self):
+        # 这里存在一定的性能问题
+        return len(self.serialize())
     def serialize(self) -> bytes:
         """将完整的区块（头+交易）序列化为二进制。"""
         s = self.header.serialize()

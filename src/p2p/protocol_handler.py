@@ -24,6 +24,7 @@ class ProtocolHandler:
         self.peer_manager = peer_manager
         self.mempool = mempool
         self.address_manager = address_manager
+        self.is_syncing = False  # 新增：同步状态标志
 
         # 订阅 Peer 发来的所有消息
         self.event_bus.subscribe('network_message_received', self.on_message_received)
@@ -49,7 +50,7 @@ class ProtocolHandler:
 
         # 2. 主动拉取地址 (PULL)
         log.debug(f"向新节点 {peer.node_id} 发送 'getaddr' 请求")
-        # await peer.send_message('getaddr', {})
+        await peer.send_message('getaddr', {})
 
     async def on_peer_connection_failed(self, node_id: str):
         """[EventBus 调用] 当连接失败时标记节点"""
@@ -134,28 +135,31 @@ class ProtocolHandler:
             return
 
         log.debug(f"收到来自 {peer.node_id} 的新区块头广播: 高度 {header_info['height']}")
+        
+        # --- 修改：增加同步状态检查 ---
+        if self.is_syncing:
+            log.debug("正在同步中，暂时忽略新的区块头通知。")
+            return
+
         local_tip = self.blockchain.get_best_tip()
 
-        # Case 1: 工作量更小或相同，直接忽略
         if not local_tip or header_info['total_work'] <= local_tip['total_work']:
             log.debug("收到的区块头工作量不优，忽略。")
             return
 
-        # 检查我们是否已经有这个区块头了，避免重复处理
         if self.blockchain.block_index.get_header_info(bytes.fromhex(header_info['block_hash'])):
             log.debug("已知的区块头，忽略。")
             return
 
-        # Case 2: 是主链的直接后继区块
         if header_info['prev_block_hash'] == local_tip['block_hash'].hex():
             log.info(f"区块头是主链的直接后继，准备请求完整区块 {header_info['block_hash']}")
-            # 直接请求
-            await peer.send_message("get_block", {'hash':header_info['block_hash']})
-
-
-        # Case 3: 领先很多，或是一个未知的分叉
-        log.info(f"收到的区块头领先较多，准备启动 Headers-First 同步流程。")
-        asyncio.create_task(self.start_headers_sync(peer))
+            await peer.send_message("get_block", {'hash': header_info['block_hash']})
+        else:
+            log.info(f"收到的区块头领先较多，准备启动 Headers-First 同步流程。")
+            # --- 修改：进入同步状态 ---
+            self.is_syncing = True
+            await self.event_bus.publish('sync_started')
+            asyncio.create_task(self.start_headers_sync(peer))
 
     async def handle_get_headers(self, peer: Peer, payload: dict):
         """响应 get_headers 请求"""
@@ -163,7 +167,6 @@ class ProtocolHandler:
         hash_stop_hex = payload.get('hash_stop')
         locator = [bytes.fromhex(h) for h in locator_hex]
         log.debug(f"定位列表长度:{len(locator)}")
-        # 1. 找到共同祖先
         common_ancestor_hash = None
         for h in locator:
             if self.blockchain.block_index.get_header_info(h):
@@ -174,14 +177,12 @@ class ProtocolHandler:
             log.debug(f'未找到共同祖先')
             return
 
-        # 2. 从共同祖先的下一个开始，收集区块头
         headers_to_send = []
         start_height = self.blockchain.block_index.get_header_info(common_ancestor_hash)['height'] + 1
         log.debug(f'找到共同祖先区块:{common_ancestor_hash.hex()},开始返回区块高度:{start_height} 开始收集区块头')
-        for height in range(start_height, start_height + 2000):  # 最多发送2000个
+        for height in range(start_height, start_height + 2000):
             header_info = self.blockchain.block_index.get_header_by_height(height)
             if not header_info: break
-            # 将 bytes 转换为 hex 以便 JSON 序列化
             header_info['block_hash'] = header_info['block_hash'].hex()
             header_info['prev_block_hash'] = header_info['prev_block_hash'].hex()
             header_info['merkle_root'] = header_info['merkle_root'].hex()
@@ -197,23 +198,28 @@ class ProtocolHandler:
         headers = payload.get('headers', [])
         if not headers:
             log.info("Headers 同步完成。")
+            # --- 修改：退出同步状态 ---
+            if self.is_syncing:
+                self.is_syncing = False
+                await self.event_bus.publish('sync_finished')
             return
 
         log.info(f"收到来自 {peer.node_id} 的 {len(headers)} 个区块头，开始验证并下载...")
 
-        # 1. 验证区块头的连续性和工作量证明 (PoW) - 此处简化，核心验证在 add_block 中
-
-        # 2. 按顺序下载完整的区块
         for header in headers:
             block_hash = bytes.fromhex(header['block_hash'])
-            # 检查本地是否已有此区块，避免重复下载h
             if not self.blockchain.block_index.get_header_info(block_hash):
-                await peer.send_message("get_block",{'hash':header['block_hash']})
+                await peer.send_message("get_block", {'hash': header['block_hash']})
 
-        # 3. 如果收满了2000个，说明可能还有更多，继续请求
         if len(headers) == 2000:
             log.info("可能还有更多区块头，继续同步...")
             await self.start_headers_sync(peer)
+        else:
+            # --- 修改：如果这是最后批次的区块头，则同步完成 ---
+            if self.is_syncing:
+                self.is_syncing = False
+                await self.event_bus.publish('sync_finished')
+
 
     async def handle_get_block(self, peer: Peer, payload: dict):
         """响应 get_block 请求"""
@@ -227,27 +233,24 @@ class ProtocolHandler:
                 await peer.send_message('block_info', {'block_data': block.serialize().hex()})
 
     async def handle_block_info(self, peer: Peer, payload: dict):
-        """
-        处理 block_info 响应。
-        注意：这个方法是空的，因为实际的响应处理是通过 request_block 中的临时事件订阅完成的。
-        保留这个方法可以避免 "handle_unknown" 的警告。
-        """
+        """处理收到的完整区块信息"""
         block_hex = payload.get('block_data')
-        if not block_hex:return
+        if not block_hex: return
         stream = io.BytesIO(bytes.fromhex(block_hex))
-        block_info = Block.deserialize(stream)
-        log.debug(f'收到block:{block_info.hash().hex()}')
-        # 增加到本地区块，这里暂时不做通知，
-        self.blockchain.add_block(block_info)
-        # 这里额外加一个判断，如果区块成了当前的顶头区块，则直接广播
-        best_tip = self.blockchain.get_best_tip()
-        if best_tip['block_hash'] == block_info.hash():
-            log.debug(f'收到最新验证区块，区块高度:{best_tip["height"]}，发布区块验证通知')
-            asyncio.create_task(self.event_bus.publish("block_validated", best_tip))
+        block = Block.deserialize(stream)
+        log.debug(f'收到block:{block.hash().hex()}')
+        
+        # --- 恢复简单逻辑 ---
+        if self.blockchain.add_block(block):
+            best_tip = self.blockchain.get_best_tip()
+            if best_tip['block_hash'] == block.hash():
+                log.debug(f'收到最新验证区块，区块高度:{best_tip["height"]}，发布区块验证通知')
+                asyncio.create_task(self.event_bus.publish("block_validated", best_tip))
+
     async def handle_notify_new_block(self, peer: Peer, payload: dict):
         """
         处理旧的、广播完整区块的消息（为了兼容性或简化测试）。
-        在生产环境中，应优先使用 notify_new_block_header。
+        已弃用。
         """
         block_data_hex = payload.get('block')
         if not block_data_hex: return
@@ -256,9 +259,7 @@ class ProtocolHandler:
         block = Block.deserialize(block_bytes)
         log.debug(f'收到完整区块广播: {block.hash().hex()}，来自节点: {peer.get_connection_info()}')
 
-        if self.blockchain.add_block(block=block):
-            # add_block 成功后，blockchain 内部应该触发事件，由 PeerManager 负责广播
-            pass
+        self.blockchain.add_block(block=block)
 
     # --- 辅助方法 ---
 
@@ -266,20 +267,29 @@ class ProtocolHandler:
         """与一个 Peer 启动 Headers-First 同步流程"""
         locator_hashes = self.blockchain.block_index.get_locator_hashes()
         if not locator_hashes:
+            # 如果无法获取定位哈希，则无法同步，退出同步状态
+            if self.is_syncing:
+                self.is_syncing = False
+                await self.event_bus.publish('sync_finished')
             return
 
         log.debug(f"向 {peer.get_connection_info()} 发送 get_headers 请求")
         await peer.send_message('get_headers', {
             'locator': [h.hex() for h in locator_hashes],
-            'hash_stop': (b'\x00' * 32).hex()  # 表示一直到对方的链顶
+            'hash_stop': (b'\x00' * 32).hex()
         })
 
 
-    async def handle_notify_new_tx(self,peer:Peer, tx:Transaction):
+    async def handle_notify_new_tx(self,peer:Peer, payload:dict):
+        tx_bytes = bytes.fromhex(payload.get('tx'))
+        tx = Transaction.deserialize(io.BytesIO(tx_bytes))
         log.debug(f'收到节点:{peer.get_connection_info()}，广播新交易:{tx.hash().hex()}')
-        # 发布消息，由mempool订阅处理。
         await self.event_bus.publish('recv_new_tx',tx)
 
+    async def handle_manbc(self,peer:Peer,payload:dict):
+        # 手动广播
+        log.info(f'recv from {peer.get_connection_info()}:{payload}')
+        
     async def handle_unknown(self, peer: Peer, payload: dict):
         msg_type = peer.node_id
         log.warning(f"收到来自 {peer.get_connection_info()} 的未知消息类型")

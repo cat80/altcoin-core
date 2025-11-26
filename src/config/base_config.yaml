@@ -1,3 +1,13 @@
+enable-rpc: yes
+enable-indexer: yes
+enable-minner: yes
+data_dir: "/home/cat80/p2p-default-1989"
+log_dir: "/home/cat80/p2p-default-1989"
+rpc:
+  port: 111
+minner:
+  coinbase_address: "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb"
+  op_return_data: "aaa"
 p2p:
   data_dir: "/home/cat80/p2p-default-1989"
   listen_port: 1989

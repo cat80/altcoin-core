@@ -18,8 +18,8 @@ log = logging.getLogger(__name__)
 
 # --- 配置 ---
 # 使用与集成测试相同的节点数据目录
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "nodes-data", "node17880-test"))
-INDEXER_DB_PATH = os.path.join(DATA_DIR, "indexer_test.db")
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "nodes-data", "node17880"))
+INDEXER_DB_PATH = os.path.join(DATA_DIR, "indexer.db")
 RPC_PORT = 8332
 
 async def main():
@@ -50,7 +50,6 @@ async def main():
         rpc_port=RPC_PORT,
         blockchain=blockchain,
         mempool=mempool,
-        event_bus=event_bus,
         indexer_db=indexer_db_wrapper
     )
     

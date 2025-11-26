@@ -45,7 +45,7 @@ class PeerCmdHandler:
         """
         cmd_arr =self.input_text_to_arr(txt,3)
         log.info(f'广播消息:{cmd_arr[2]}')
-        await self.peer_manager.broadcast("ping",{"msg":cmd_arr[2]})
+        await self.peer_manager.broadcast("manbc",{"msg":cmd_arr[2]})
 
     async def cmd_p2p_info(self,txt):
         """

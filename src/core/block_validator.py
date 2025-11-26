@@ -68,7 +68,7 @@ class BlockValidator:
             for tx_in in transaction.tx_ins:
                 utxo = utxo_view.get_utxo(tx_in)
                 if utxo is None:
-                    log.warning(f"Input UTXO not found for transaction {transaction.hash().hex()}")
+                    log.warning(f"Input UTXO {tx_in.prev_tx_hash.hex()}:{tx_in.prev_tx_out_index} not found for transaction {transaction.hash().hex()}")
                     return False
                 input_sum += utxo.value
 

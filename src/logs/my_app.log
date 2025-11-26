@@ -1,0 +1,90 @@
+2025-11-23 17:31:23,825 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:31:23,842 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:31:23,843 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:31:23,845 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:31:23,850 - bootstrap - DEBUG - Exception details for checking PID 164477:
+Traceback (most recent call last):
+  File "/mnt/d/prj/web3/altcoin-core/src/bootstrap.py", line 35, in setup_node
+    os.kill(pid, 0)
+ProcessLookupError: [Errno 3] No such process
+2025-11-23 17:31:23,852 - bootstrap - WARNING - 检测到残留的锁文件 (来自已退出的PID: 164477)，将继续启动。
+2025-11-23 17:31:23,856 - bootstrap - INFO - 已成功获取数据目录锁: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/.lock
+2025-11-23 17:31:23,858 - bootstrap - INFO - 从 /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/node_key 加载现有密钥...
+2025-11-23 17:31:23,866 - bootstrap - INFO - 节点ID: 4f6301b8c82c125bb96b8277a257178e346e6cb881705824465a6f96e1f79528
+2025-11-23 17:31:23,866 - bootstrap - INFO - 默认Coinbase地址: 12zY8gedxoZ8WaBDjXGj2cYeHtZEWVVkqe
+2025-11-23 17:31:23,866 - bootstrap - INFO - 配置中的coinbase_address为空，已使用节点公钥地址填充。
+2025-11-23 17:46:30,450 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:46:30,457 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:46:30,458 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:46:30,458 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:46:30,461 - bootstrap - ERROR - 节点已在运行 (PID: 241223)，请先停止它。
+2025-11-23 17:47:00,117 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:47:00,123 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:47:00,123 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:47:00,124 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:47:00,125 - bootstrap - ERROR - 节点已在运行 (PID: 241223)，请先停止它。
+2025-11-23 17:47:28,641 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:47:28,649 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:47:28,650 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:47:28,652 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:47:28,657 - bootstrap - DEBUG - Exception details for checking PID 241223:
+Traceback (most recent call last):
+  File "/mnt/d/prj/web3/altcoin-core/src/bootstrap.py", line 35, in setup_node
+    os.kill(pid, 0)
+ProcessLookupError: [Errno 3] No such process
+2025-11-23 17:47:28,660 - bootstrap - WARNING - 检测到残留的锁文件 (来自已退出的PID: 241223)，将继续启动。
+2025-11-23 17:47:28,663 - bootstrap - INFO - 已成功获取数据目录锁: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/.lock
+2025-11-23 17:47:28,664 - bootstrap - INFO - 从 /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/node_key 加载现有密钥...
+2025-11-23 17:47:28,672 - bootstrap - INFO - 节点ID: 4f6301b8c82c125bb96b8277a257178e346e6cb881705824465a6f96e1f79528
+2025-11-23 17:47:28,673 - bootstrap - INFO - 默认Coinbase地址: 12zY8gedxoZ8WaBDjXGj2cYeHtZEWVVkqe
+2025-11-23 17:47:28,673 - bootstrap - INFO - 配置中的coinbase_address为空，已使用节点公钥地址填充。
+2025-11-23 17:58:07,019 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:58:07,024 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:58:07,025 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:58:07,025 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:58:07,027 - bootstrap - ERROR - 节点已在运行 (PID: 244316)，请先停止它。
+2025-11-23 17:58:18,883 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 17:58:18,888 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 17:58:18,888 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 17:58:18,891 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 17:58:18,894 - bootstrap - DEBUG - Exception details for checking PID 244316:
+Traceback (most recent call last):
+  File "/mnt/d/prj/web3/altcoin-core/src/bootstrap.py", line 35, in setup_node
+    os.kill(pid, 0)
+ProcessLookupError: [Errno 3] No such process
+2025-11-23 17:58:18,896 - bootstrap - WARNING - 检测到残留的锁文件 (来自已退出的PID: 244316)，将继续启动。
+2025-11-23 17:58:18,899 - bootstrap - INFO - 已成功获取数据目录锁: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/.lock
+2025-11-23 17:58:18,900 - bootstrap - INFO - 从 /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/node_key 加载现有密钥...
+2025-11-23 17:58:18,906 - bootstrap - INFO - 节点ID: 4f6301b8c82c125bb96b8277a257178e346e6cb881705824465a6f96e1f79528
+2025-11-23 17:58:18,907 - bootstrap - INFO - 默认Coinbase地址: 12zY8gedxoZ8WaBDjXGj2cYeHtZEWVVkqe
+2025-11-23 17:58:18,907 - bootstrap - INFO - 配置中的coinbase_address为空，已使用节点公钥地址填充。
+2025-11-23 18:02:55,997 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 18:02:56,010 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 18:02:56,010 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 18:02:56,011 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 18:02:56,015 - bootstrap - ERROR - 节点已在运行 (PID: 246470)，请先停止它。
+2025-11-23 18:03:04,090 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 18:03:04,096 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 18:03:04,096 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 18:03:04,097 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 18:03:04,099 - bootstrap - ERROR - 节点已在运行 (PID: 246470)，请先停止它。
+2025-11-23 18:03:17,943 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-23 18:03:17,949 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-23 18:03:17,949 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-23 18:03:17,950 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-23 18:03:17,953 - bootstrap - DEBUG - Exception details for checking PID 246470:
+Traceback (most recent call last):
+  File "/mnt/d/prj/web3/altcoin-core/src/bootstrap.py", line 35, in setup_node
+    os.kill(pid, 0)
+ProcessLookupError: [Errno 3] No such process
+2025-11-23 18:03:17,955 - bootstrap - WARNING - 检测到残留的锁文件 (来自已退出的PID: 246470)，将继续启动。
+2025-11-23 18:03:17,957 - bootstrap - INFO - 已成功获取数据目录锁: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/.lock
+2025-11-23 18:03:17,958 - bootstrap - INFO - 从 /mnt/d/prj/web3/altcoin-core/nodes-data/node16888/node_key 加载现有密钥...
+2025-11-23 18:03:17,963 - bootstrap - INFO - 节点ID: 4f6301b8c82c125bb96b8277a257178e346e6cb881705824465a6f96e1f79528
+2025-11-23 18:03:17,964 - bootstrap - INFO - 默认Coinbase地址: 12zY8gedxoZ8WaBDjXGj2cYeHtZEWVVkqe
+2025-11-23 18:03:17,964 - bootstrap - INFO - 配置中的coinbase_address为空，已使用节点公钥地址填充。
+2025-11-24 13:09:13,654 - root - INFO - 日志系统配置成功。加载配置:/mnt/d/prj/web3/altcoin-core/src/config/logging_config.yaml
+2025-11-24 13:09:13,664 - asyncio - DEBUG - Using selector: EpollSelector
+2025-11-24 13:09:13,665 - __main__ - DEBUG - 原始应用配置: {'p2p': {'data_dir': '/mnt/d/prj/web3/altcoin-core/nodes-data/node16888', 'rpc_port': 8088, 'listen_port': 16888, 'peer_nodes': [{'host': '127.0.0.1', 'port': 17890, 'node_id': '17890'}, {'host': '127.0.0.1', 'port': 17880, 'node_id': '17880'}]}}
+2025-11-24 13:09:13,665 - bootstrap - INFO - 数据目录已确保存在: /mnt/d/prj/web3/altcoin-core/nodes-data/node16888
+2025-11-24 13:09:13,669 - bootstrap - ERROR - 节点已在运行 (PID: 247464)，请先停止它。

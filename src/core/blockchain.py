@@ -6,28 +6,26 @@ blockchain.py
 """
 import logging
 import os
-import time
-from pickle import FRAME
 from typing import Optional, List, Tuple
+from sqlalchemy.orm import Session
 
-from config import INITIAL_BLOCK_REWARD
 from .block import Block, BlockHeader
 from .transaction import Transaction, TxIn, TxOut
 from .block_index import BlockIndex
-from .chain_state import ChainState,ChainStateCacheView
+from .chain_state import ChainState, ChainStateCacheView
 from .block_validator import BlockValidator
 from .block_storage import BlockStorage
 from config import *
-from storage.core_models import CoreBase
+from storage.core_models import CoreBase, UndoRecordModel
 log = logging.getLogger(__name__)
 
 class Blockchain:
     """
     顶层的区块链管理类。
     """
-    block_storage :BlockStorage
-    block_index :BlockIndex
-    chain_state:ChainState
+    block_storage: BlockStorage
+    block_index: BlockIndex
+    chain_state: ChainState
 
     @classmethod
     def new_from_data_dir(cls,data_dir:str):
@@ -40,9 +38,9 @@ class Blockchain:
         os.makedirs(data_dir,exist_ok=True)
         sqldb = SQLAlchemyWrapper(os.path.join(data_dir,'index.db'))
         sqldb.create_all_tables(CoreBase)
-        rocks_db = RocksDBWrapper(os.path.join(data_dir,'utxo'))
+        rocks_db = RocksDBWrapper(os.path.join(data_dir, 'utxo'))
         chainState = ChainState(rocks_db)
-        blockStorage = BlockStorage(os.path.join(data_dir,'block'))
+        blockStorage = BlockStorage(os.path.join(data_dir, 'block'))
         blockIndex = BlockIndex(sqldb=sqldb)
         return cls(
             block_index=blockIndex,
@@ -87,16 +85,17 @@ class Blockchain:
         这包括验证、存储、更新索引和状态，以及处理可能的分叉和重组。
         """
         block_hash = block.hash()
+        log.debug(f'start handle add block,block hash:{block.hash().hex()},trans count:{len(block.transactions)}')
 
         log.debug(f'start handle add block,block hash:{block.hash().hex()},trans count:{len(block.transactions)},coinbase hashid:{block.transactions[0].hash().hex()}')
         # 1. 初步验证 (无状态，快速失败)，这里主要验证pow是否有效
         if not BlockValidator.check_block_header(block.header):
-            log.debug(f"Block {block_hash.hex()} failed header validation (PoW).")
+            log.warning(f"Block {block_hash.hex()} failed header validation (PoW).")
             return False
          # 2. 检查父区块是否存在于索引中
         prev_hash = block.header.prev_block_hash
         prev_header_info = self.block_index.get_header_info(prev_hash)
-        
+
         if prev_header_info is None:
             # 暂时不处理孤立节点的问题，这里返回多个状态，让上一级事件处理方法处理
             log.info(f"Block {block_hash.hex()} is an orphan block, parent {prev_hash.hex()} not found.")
@@ -124,11 +123,16 @@ class Blockchain:
                 return False
             # 写入文件，增加utxo索引，更新utxo状态。这里应该是一个事务，具有原子性，这里暂时不做处理，在父级插入成功的时候，做一个简单的验证，确保最顶端的coinbase在utxo中有效即可。
             file_index, offset = self.block_storage.write_block(block)
-            self.block_index.add_header(block.header, new_height, new_total_work, file_index, offset,BLOCK_STATUS_VALID)
-            self.chain_state.apply_block(block)
+            self.block_index.add_header(block.header, new_height, new_total_work, file_index, offset, BLOCK_STATUS_VALID)
+
+            # 应用区块变更并获取“退货小票”
+            spent_utxos = self.chain_state.apply_block(block)
+            # 将“退货小票”存入数据库
+            self._write_undo_records(block_hash, spent_utxos)
+
             return True
         else:
-            # 这里处理分叉和重组，只要prev_hash在区块中存在，则直接持久化数据，但不更新utxo状态.标记block index为分支侧 链
+            # 检测到分叉
             file_index, offset = self.block_storage.write_block(block)
             self.block_index.add_header(block.header, new_height, new_total_work, file_index, offset,
                                         BLOCK_STATUS_INVALID)
@@ -139,9 +143,7 @@ class Blockchain:
                 # 如果侧链的工作 量比当前的主链更大则进行重组
                 return self._handle_reorganization(block,current_tip)
             else:
-               #  成功增加到侧链
-               return True
-
+                return True
 
     def _handle_reorganization(self, new_chain_tip_block: Block, old_tip_info: dict) -> bool:
         """
@@ -152,10 +154,9 @@ class Blockchain:
         4. 如果全部验证成功，则原子性地提交数据库批处理，并更新区块索引状态。
         """
         log.info(f"Reorganization triggered by new block {new_chain_tip_block.hash().hex()}. Old tip: {old_tip_info['block_hash'].hex()}")
-        
+
         new_tip_info = self.block_index.get_header_info(new_chain_tip_block.hash())
         if not new_tip_info:
-            log.debug("Exception details: Could not find header info for the new chain tip during reorganization.", exc_info=True)
             log.error("Could not find header info for the new chain tip during reorganization.")
             return False
 
@@ -164,77 +165,104 @@ class Blockchain:
         )
 
         if not ancestor_hash:
-            log.debug("Exception details: Reorganization failed: Could not find a common ancestor.", exc_info=True)
             log.error("Reorganization failed: Could not find a common ancestor.")
             return False
 
         log.info(f"Common ancestor: {ancestor_hash.hex()}. Rolling back {len(old_blocks_info)} blocks, applying {len(new_blocks_info)} blocks.")
 
         cache_view = ChainStateCacheView(self.chain_state)
-        
-        # 1. 模拟回滚旧链区块
+        new_undo_records_to_add = []
+
+        # 1. 在内存中模拟回滚旧链
         for block_info in old_blocks_info:
             block = self.block_storage.read_block(block_info['file_index'], block_info['file_offset'])
             if not block:
                 log.error(f"Failed to read block {block_info['block_hash'].hex()} from storage for rollback.")
                 return False
-            
-            # 为了回滚，需要找到这个区块花掉的UTXO
-            spent_utxos = self._find_spent_utxos_for_block(block)
+
+            # 从数据库读取准确的撤销记录来回滚
+            spent_utxos = self._read_undo_records(block_info['block_hash'])
             cache_view.revert_block(block, spent_utxos)
 
-        # 2. 模拟并验证应用新链区块
-        for block_info in new_blocks_info:
+        # 2. 在内存中模拟应用新链
+        for block_info in reversed(new_blocks_info): # 从最老的区块开始应用
             block = self.block_storage.read_block(block_info['file_index'], block_info['file_offset'])
             if not block:
                 log.error(f"Failed to read block {block_info['block_hash'].hex()} from storage for applying.")
                 return False
-            
-            prev_hash = block.header.prev_block_hash
-            # 在验证时，我们需要前一个区块的信息，这可能在旧链、新链或缓存视图中
-            prev_header_info = self.block_index.get_header_info(prev_hash)
 
-            # 使用缓存视图进行验证
+            # 收集要回滚恢复的utxo
+            spent_utxos_for_new_block = []
+            for tx in block.transactions:
+                if not tx.is_coinbase(): # coinbase不需要恢复
+                    for tx_in in tx.tx_ins:
+                        utxo = cache_view.get_utxo(tx_in)
+                        if utxo:
+                            spent_utxos_for_new_block.append((tx_in, utxo))
+                        else:
+                            log.warning(f"Reorg validation failed: UTXO for {tx_in.prev_tx_hash.hex()}:{tx_in.prev_tx_out_index} not found in cache view.")
+                            return False
+
+            prev_header_info = self.block_index.get_header_info(block.header.prev_block_hash)
             if not BlockValidator.check_block(block, cache_view, self.block_index, prev_header_info):
                 log.warning(f"Reorganization failed: New chain block {block.hash().hex()} failed validation.")
                 return False
-            
-            # 验证通过，将变更应用到缓存视图
+
             cache_view.apply_block(block)
+            new_undo_records_to_add.append((block.hash(), spent_utxos_for_new_block))
 
-        # 3. 所有验证通过，提交变更
-        # a. 提交UTXO变更
-        final_batch = cache_view.get_batch()
+        # 3. 所有验证通过，原子性地提交所有变更
+        # 3a. 提交UTXO集变更
+        self.chain_state.db.write_batch(cache_view.get_batch())
 
-        log.debug(f'reorg batch write len:{final_batch.len()}')
-        self.chain_state.commit_utxo_batch(final_batch)
-        
-        # b. 更新区块索引状态
+        # 3b. 提交区块索引状态变更
         old_hashes = [b['block_hash'] for b in old_blocks_info]
         new_hashes = [b['block_hash'] for b in new_blocks_info]
         self.block_index.update_blocks_status(old_hashes, BLOCK_STATUS_INVALID)
         self.block_index.update_blocks_status(new_hashes, BLOCK_STATUS_VALID)
 
+        # 3c. 提交撤销记录的变更
+        with self.block_index.sqldb.get_session() as session:
+            session.query(UndoRecordModel).filter(UndoRecordModel.block_hash.in_(old_hashes)).delete(synchronize_session=False)
+            for block_hash, spent_utxos in new_undo_records_to_add:
+                self._write_undo_records(block_hash, spent_utxos, session)
+            session.commit()
+
         log.info(f"Reorganization successful. New tip is now {new_tip_info['block_hash'].hex()}.")
         return True
 
-    def _find_spent_utxos_for_block(self, block: Block) -> List[Tuple[TxIn, TxOut]]:
-        """
-        辅助函数：为给定的区块找到所有被其花费的UTXO。
-        这在回滚时是必需的。
-        """
-        spent_utxos = []
-        for tx in block.transactions:
-            if not tx.is_coinbase():
-                for tx_in in tx.tx_ins:
-                    # 在当前状态下查找UTXO，因为此时尚未回滚
-                    utxo = self.chain_state.get_utxo(tx_in)
-                    if utxo:
-                        spent_utxos.append((tx_in, utxo))
-        return spent_utxos
+    def _write_undo_records(self, block_hash: bytes, spent_utxos: List[Tuple[TxIn, TxOut]], session: Optional[Session] = None):
+        """将一个区块的撤销信息写入数据库。"""
+        def writer(s: Session):
+            for tx_in, tx_out in spent_utxos:
+                record = UndoRecordModel(
+                    block_hash=block_hash,
+                    prev_tx_hash=tx_in.prev_tx_hash,
+                    prev_tx_out_index=tx_in.prev_tx_out_index,
+                    value=tx_out.value,
+                    locking_script=tx_out.locking_script
+                )
+                s.add(record)
+
+        if session:
+            writer(session)
+        else:
+            with self.block_index.sqldb.get_session() as s:
+                writer(s)
+                s.commit()
+
+    def _read_undo_records(self, block_hash: bytes) -> List[Tuple[TxIn, TxOut]]:
+        """从数据库读取一个区块的撤销信息。"""
+        with self.block_index.sqldb.get_session() as session:
+            records = session.query(UndoRecordModel).filter_by(block_hash=block_hash).all()
+            spent_utxos = []
+            for record in records:
+                tx_in = TxIn(record.prev_tx_hash, record.prev_tx_out_index, b'')
+                tx_out = TxOut(record.value, record.locking_script)
+                spent_utxos.append((tx_in, tx_out))
+            return spent_utxos
 
     def get_best_tip(self) -> Optional[dict]:
-        """返回主链顶端的信息。"""
         return self.block_index.get_tip()
 
     def close(self):
