@@ -1,11 +1,12 @@
 import logging
 import time
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, APIRouter
 from pydantic import BaseModel
 import uvicorn
 import io
 from sqlalchemy import func, desc, or_
 from collections import defaultdict
+from datetime import datetime
 
 from core.blockchain import Blockchain
 from core.transaction import Transaction,TxIn,TxOut
@@ -35,17 +36,74 @@ class RpcServer:
         self.port = rpc_port
         self.blockchain = blockchain
         self.mempool = mempool
-        self.app = FastAPI()
+        self.app = FastAPI(
+
+        )
         self.db = indexer_db
 
+        self.app_router = APIRouter(prefix='/rpc')
+        # 首页聚合数据缓存
+        self._index_data_cache = None
+        self._index_data_cache_time = 0
+
+        # 首页聚合接口
+        @self.app_router.get("/index/data")
+        async def get_index_data():
+            # 检查缓存
+            if self._index_data_cache and (time.time() - self._index_data_cache_time < 60):
+                log.debug("Returning cached index data.")
+                return self._index_data_cache
+
+            log.debug("Generating new index data.")
+            with self.db.get_session() as session:
+                try:
+                    # 1. 汇总摘要 (全历史数据)
+                    summary = {}
+                    # 总交易量 (所有非coinbase交易的输入总和)
+                    summary['trade_volume'] = session.query(func.sum(TransactionInfo.input_amount)).filter(TransactionInfo.fee > 0).scalar() or 0
+                    # summary['trade_volume'] = round( summary['trade_volume'] /(10**8), 2)
+                    # 活跃地址数 (历史所有参与过交易的地址去重)
+                    summary['active_addresses'] = session.query(func.count(AddressTransaction.address.distinct())).scalar() or 0
+                    # 节点数 (模拟)
+                    now = datetime.now()
+                    summary['node_count'] = now.hour * 4 + int(now.minute / 15)
+                    # 平均交易费用
+                    summary['avg_fee'] = session.query(func.avg(TransactionInfo.fee)).filter(TransactionInfo.fee > 0).scalar() or 0
+
+                    # summary['avg_fee'] = round( float( summary['trade_volume']) /(10**8), 6)
+
+
+
+                    # 4. 大额的交易 (20条，简化字段)
+
+
+                    # 组装最终结果
+                    response = {
+                        "result": 1,
+                        "summary": summary,
+                        "mempool_info": await get_mempool_info(),
+                        "latest_blocks":await get_latest_blocks(20),
+                        "large_transactions": await get_large_transactions('d1')
+                    }
+                    print(response)
+                    # 更新缓存
+                    self._index_data_cache = response
+                    self._index_data_cache_time = time.time()
+                    
+                    return response
+
+                except Exception as e:
+                    log.error(f"Error generating index data: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Internal server error while generating index data.")
+
         # 统一的搜索入口
-        @self.app.get("/search/{hashid}")
+        @self.app_router.get("/search/{hashid}")
         async def search_by_hash_or_id(hashid: str):
             with self.db.get_session() as session:
                 # 尝试作为区块哈希搜索
                 block_by_hash = session.query(BlockInfo).filter_by(hash=hashid).first()
                 if block_by_hash:
-                    return {"result": 1, "type": "block", "data": f"/block/hash/{hashid}"}
+                    return {"result": 1, "type": "block", "data": f"/block/{hashid}"}
 
                 # 尝试作为交易哈希搜索
                 tx_by_hash = session.query(TransactionInfo).filter_by(hash=hashid).first()
@@ -56,17 +114,17 @@ class RpcServer:
                 if hashid.isdigit():
                     block_by_height = session.query(BlockInfo).filter_by(height=int(hashid)).first()
                     if block_by_height:
-                        return {"result": 1, "type": "block", "data": f"/block/height/{hashid}"}
+                        return {"result": 1, "type": "block", "data": f"/block/{hashid}"}
                 
                 # 尝试作为地址搜索 (简单检查是否存在于地址交易表中)
                 address_check = session.query(AddressTransaction).filter_by(address=hashid).first()
                 if address_check:
-                    return {"result": 1, "type": "address", "data": f"/address/{hashid}/txs"}
+                    return {"result": 1, "type": "address", "data": f"/address/{hashid}/txs/0/20"}
 
             return {"result": 0, "type": "not_found"}
 
         # 交易相关
-        @self.app.post("/tx/send")
+        @self.app_router.post("/tx/send")
         async def send_raw_transaction(raw_tx: RawTx):
             try:
                 tx_bytes = bytes.fromhex(raw_tx.hex)
@@ -75,8 +133,6 @@ class RpcServer:
                 if await self.mempool.add_transaction(tx):
                     return {"status": "success", "txid": tx_hash.hex()}
                 else:
-                    # 提供更具体的错误信息
-                    # 注意：这里为了安全，不应暴露过多内部细节，但可以区分“已存在”和“无效”
                     if tx_hash in self.mempool.transactions:
                          detail = "Transaction already in mempool."
                     else:
@@ -88,7 +144,7 @@ class RpcServer:
                 log.error(f"Error processing transaction: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="Internal server error")
 
-        @self.app.get("/tx/{tx_hash}")
+        @self.app_router.get("/tx/{tx_hash}")
         async def get_transaction_by_hash(tx_hash: str):
             with self.db.get_session() as session:
                 tx_info = session.query(TransactionInfo).filter_by(hash=tx_hash).first()
@@ -115,7 +171,7 @@ class RpcServer:
                     "outputs": [{"address": o.address, "value": o.value} for o in outputs]
                 }
 
-        @self.app.get("/utxo/{tx_hash}/{index}")
+        @self.app_router.get("/utxo/{tx_hash}/{index}")
         def get_utxo(tx_hash: str, index: int):
             tx_in = TxIn(bytes.fromhex(tx_hash), index, b'')
             tx_out = self.blockchain.chain_state.get_utxo(tx_in)
@@ -130,17 +186,15 @@ class RpcServer:
                     'result': 0
                 }
 
-        @self.app.get("/tx/large/{period}/{page}")
-        async def get_large_transactions(period: str, page: int, page_size: int = Query(20, ge=1, le=100)):
-            if period not in ['d1']: # d1 for 1 day
+        @self.app_router.get("/tx/large/{period}/{page}")
+        async def get_large_transactions(period: str, page: int = 1, page_size: int = 20):
+            if period not in ['d1']:
                  raise HTTPException(status_code=400, detail="Invalid period. Use 'd1' for last 24 hours.")
             
             with self.db.get_session() as session:
-                seconds_in_period = 24 * 3600 # 1 day
-                start_ts = int(time.time()) - seconds_in_period
+                # seconds_in_period = 24 * 3600
                 
                 query = session.query(TransactionInfo).filter(
-                    TransactionInfo.timestamp >= start_ts,
                     TransactionInfo.tx_amount > 0
                 )
                 
@@ -156,6 +210,7 @@ class RpcServer:
                         "block_hash": tx.block_hash,
                         "block_height": tx.block_height,
                         "timestamp": tx.timestamp,
+                        "fee": tx.fee,
                         "input_addresses": [i[0] for i in inputs],
                         "output_addresses": [o[0] for o in outputs],
                         "tx_amount": tx.tx_amount
@@ -163,8 +218,47 @@ class RpcServer:
 
                 return {"total": total_count, "data": result_data}
 
+        @self.app_router.get("/tx/list/{start}/{take}")
+        async def get_transaction_list(start: int, take: int):
+            if not 1 <= take <= 100:
+                raise HTTPException(status_code=400, detail="Take must be between 1 and 100.")
+            
+            with self.db.get_session() as session:
+                query = session.query(TransactionInfo).order_by(desc(TransactionInfo.timestamp))
+                total = query.count()
+                tx_infos = query.offset(start).limit(take).all()
+
+                if not tx_infos:
+                    return {"total": total, "data": []}
+
+                tx_hashes = [tx.hash for tx in tx_infos]
+                all_addr_txs = session.query(AddressTransaction).filter(AddressTransaction.tx_hash.in_(tx_hashes)).all()
+
+                addr_txs_by_hash = defaultdict(list)
+                for at in all_addr_txs:
+                    addr_txs_by_hash[at.tx_hash].append(at)
+
+                txs_details = []
+                for tx in tx_infos:
+                    records_for_tx = addr_txs_by_hash.get(tx.hash, [])
+                    inputs = [{"address": r.address, "amount": -r.value} for r in records_for_tx if r.role == 'input']
+                    outputs = [{"address": r.address, "amount": r.value} for r in records_for_tx if r.role == 'output']
+                    
+                    txs_details.append({
+                        "tx_hash": tx.hash,
+                        "block_height": tx.block_height,
+                        "timestamp": tx.timestamp,
+                        "tx_in": inputs,
+                        "tx_out": outputs,
+                        "fee": tx.fee,
+                        "tx_amount": tx.tx_amount,
+                        "op_return": decode_op_return(tx.op_return_data)
+                    })
+
+                return {"total": total, "data": txs_details}
+
         # 区块相关
-        @self.app.get("/block/latest/{count}")
+        @self.app_router.get("/block/latest/{count}")
         async def get_latest_blocks(count: int):
             if not 1 <= count <= 50:
                 raise HTTPException(status_code=400, detail="Count must be between 1 and 50.")
@@ -177,7 +271,7 @@ class RpcServer:
                     "reward": {"block_reward": b.block_reward, "fee": b.total_fee, "total": b.total_reward},
                 } for b in blocks]
 
-        @self.app.get("/block/list/{start}/{count}")
+        @self.app_router.get("/block/list/{start}/{count}")
         async def get_block_list(start: int, count: int):
             if not 1 <= count <= 100:
                 raise HTTPException(status_code=400, detail="Count must be between 1 and 100.")
@@ -199,7 +293,6 @@ class RpcServer:
                 return {"total": total, "data": data}
 
         async def get_full_block_details(block: BlockInfo, session):
-            """获取包含完整交易列表的区块详情"""
             tx_infos = session.query(TransactionInfo).filter_by(block_hash=block.hash).order_by(TransactionInfo.tx_index).all()
             
             txs_details = []
@@ -226,7 +319,7 @@ class RpcServer:
                 "txs": txs_details
             }
 
-        @self.app.get("/block/height/{height}")
+        @self.app_router.get("/block/height/{height}")
         async def get_block_by_height(height: int):
             with self.db.get_session() as session:
                 block = session.query(BlockInfo).filter_by(height=height).first()
@@ -234,7 +327,7 @@ class RpcServer:
                     raise HTTPException(status_code=404, detail="Block not found.")
                 return await get_full_block_details(block, session)
 
-        @self.app.get("/block/hash/{b_hash}")
+        @self.app_router.get("/block/hash/{b_hash}")
         async def get_block_by_hash(b_hash: str):
             with self.db.get_session() as session:
                 block = session.query(BlockInfo).filter_by(hash=b_hash).first()
@@ -243,21 +336,23 @@ class RpcServer:
                 return await get_full_block_details(block, session)
 
         # 地址相关
-        @self.app.get("/address/{address}/txs")
-        async def get_transactions_by_address(address: str, page: int = 1, page_size: int = 50):
+        @self.app_router.get("/address/{address}/txs/{start}/{count}")
+        async def get_transactions_by_address(address: str, start: int, count: int):
+            if not 1 <= count <= 100:
+                raise HTTPException(status_code=400, detail="Count must be between 1 and 100.")
+
             with self.db.get_session() as session:
-                # 1. 汇总信息
                 balance = session.query(func.sum(AddressUTXO.value)).filter_by(address=address).scalar() or 0
                 total_sent = session.query(func.sum(AddressTransaction.value)).filter_by(address=address, role='input').scalar() or 0
                 total_received = session.query(func.sum(AddressTransaction.value)).filter_by(address=address, role='output').scalar() or 0
 
-                # 2. 分页查询唯一的交易哈希
                 total_txs = session.query(AddressTransaction.tx_hash).filter_by(address=address).distinct().count()
                 subquery = session.query(
                     AddressTransaction.tx_hash,
                     func.max(AddressTransaction.timestamp).label('max_ts')
                 ).filter_by(address=address).group_by(AddressTransaction.tx_hash).subquery()
-                paginated_tx_hashes_query = session.query(subquery.c.tx_hash).order_by(desc(subquery.c.max_ts)).offset((page - 1) * page_size).limit(page_size)
+                
+                paginated_tx_hashes_query = session.query(subquery.c.tx_hash).order_by(desc(subquery.c.max_ts)).offset(start).limit(count)
                 tx_hashes = [row[0] for row in paginated_tx_hashes_query.all()]
 
                 if not tx_hashes:
@@ -267,14 +362,12 @@ class RpcServer:
                         "tx_count": total_txs, "txs": []
                     }
 
-                # 3. 批量获取交易的详细信息
                 tx_infos = {tx.hash: tx for tx in session.query(TransactionInfo).filter(TransactionInfo.hash.in_(tx_hashes)).all()}
                 all_addr_txs = session.query(AddressTransaction).filter(AddressTransaction.tx_hash.in_(tx_hashes)).all()
                 addr_txs_by_hash = defaultdict(list)
                 for at in all_addr_txs:
                     addr_txs_by_hash[at.tx_hash].append(at)
 
-                # 4. 构建返回数据
                 txs_data = []
                 for tx_hash in tx_hashes:
                     tx_info = tx_infos.get(tx_hash)
@@ -299,22 +392,20 @@ class RpcServer:
                     "tx_count": total_txs, "txs": txs_data
                 }
 
-        @self.app.get("/address/{address}/balance")
+        @self.app_router.get("/address/{address}/balance")
         async def get_balance_by_address(address: str):
             with self.db.get_session() as session:
                 balance = session.query(func.sum(AddressUTXO.value)).filter_by(address=address).scalar() or 0
                 return {"address": address, "balance": balance, "unit": "tinyalt"}
 
-        @self.app.get("/address/{address}/utxos")
+        @self.app_router.get("/address/{address}/utxos")
         async def get_utxos_by_address(address: str):
-            # 获取mempool中已花费的UTXO，以避免返回它们
             mempool_spent_utxos = self.mempool.spent_utxos
             
             with self.db.get_session() as session:
                 try:
                     utxos_from_db = session.query(AddressUTXO).filter_by(address=address).all()
                     
-                    # 过滤掉在mempool中已被花费的UTXO
                     available_utxos = []
                     for utxo in utxos_from_db:
                         utxo_ref = f"{utxo.tx_hash}:{utxo.output_index}"
@@ -330,15 +421,13 @@ class RpcServer:
                     raise HTTPException(status_code=500, detail="Internal server error")
         
         # Mempool 相关
-        @self.app.get("/mempool/info")
+        @self.app_router.get("/mempool/info")
         async def get_mempool_info():
-            # 这个接口现在可以更准确地反映mempool的状态
             txs = self.mempool.transactions
             result = []
             for tx_hash, tx in txs.items():
-                # 使用mempool的辅助函数来计算费用，更可靠
                 fee = self.mempool.calculate_fee(tx)
-                if fee == -1: # 表示UTXO信息不完整，可能chain_state还没同步
+                if fee == -1: 
                     continue
 
                 input_amount = sum(self.blockchain.chain_state.get_utxo(tx_in).value for tx_in in tx.tx_ins)
@@ -358,6 +447,8 @@ class RpcServer:
             return {"count": len(result), "transactions": result}
 
     async def run(self):
+
+        self.app.include_router(self.app_router)
         config = uvicorn.Config(self.app, host="0.0.0.0", port=self.port, log_level="info")
         server = uvicorn.Server(config)
         log.info(f"RPC server started on http://0.0.0.0:{self.port}")

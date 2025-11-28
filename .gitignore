@@ -7,7 +7,7 @@ __pycache__/
 .idea/
 *.iml
 *.log
-*/logs/*
+logs/
 test/nodes-data/
 test/tmp/
 test_tmp/

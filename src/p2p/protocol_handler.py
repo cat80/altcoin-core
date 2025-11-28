@@ -50,7 +50,7 @@ class ProtocolHandler:
 
         # 2. 主动拉取地址 (PULL)
         log.debug(f"向新节点 {peer.node_id} 发送 'getaddr' 请求")
-        await peer.send_message('getaddr', {})
+        # await peer.send_message('getaddr', {})
 
     async def on_peer_connection_failed(self, node_id: str):
         """[EventBus 调用] 当连接失败时标记节点"""

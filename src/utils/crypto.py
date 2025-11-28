@@ -47,7 +47,7 @@ def load_key_from_pem(filepath: str) -> ecdsa.SigningKey:
         从PEM格式的文件中加载私钥(SigningKey)。
     """
     if not os.path.isfile(filepath):
-        raise FileNotFoundError("pem key file not exist")
+        return None
     # 使用 'rb' (读取-字节) 模式来读取文件
     with open(filepath, "rb") as f:
         pem_data = f.read()

@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 def load_test_app_config(port):
     return {
         'p2p': {
-            "data_dir": f"/mnt/d/prj/web3/altcoin-core/nodes-data/node{port}",
+            "data_dir": f"/mnt/d/prj/web3/altcoin-core/nodes-data/node-tmp-{port}",
             "rpc_port": 8000 + port % 100, # 为每个节点分配一个RPC端口
             "listen_port": port,
             # "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",

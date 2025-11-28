@@ -21,7 +21,6 @@ log = logging.getLogger(__name__)
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "nodes-data", "node17880"))
 INDEXER_DB_PATH = os.path.join(DATA_DIR, "indexer.db")
 RPC_PORT = 8332
-
 async def main():
     """
     初始化所有依赖项并启动 RpcServer。

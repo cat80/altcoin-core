@@ -21,7 +21,7 @@ getcontext().prec = 20
 import threading
 
 # RPC服务器的地址
-RPC_SERVER_URL = "http://127.0.0.1:8080"
+RPC_SERVER_URL = "http://127.0.0.1:8332/rpc"
 
 # http://0.0.0.0:8088
 
