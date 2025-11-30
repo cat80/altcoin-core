@@ -140,7 +140,7 @@ def load_app_config():
 MAGIC_BYTES = b'\xab\xcd\xcd\xef' # 定义区块的头
 
 # 初始的代币奖励数量
-INITIAL_BLOCK_REWARD = 10 * 100_000_000 # 10个奖励
+INITIAL_BLOCK_REWARD = 100 * 100_000_000 # 10个奖励
 REWARD_CUTOFF_BLOCKS = 2100000 # 每210万个区块减半
 
 # 难度调整区块数，目前一分钟一个区块，每一周调整一次难度
@@ -155,7 +155,7 @@ TARGET_TIMESPAN = 10080 * 60  # 一周的秒数
 # 488997010 一分钟
 # 503842407 10秒
 # 491618097 大概30秒 测试前要调整难度
-INITIAL_BITS = 503842407
+INITIAL_BITS = 488997010
 # INITIAL_BITS =  503842407 # 测试用
 # 定义区块状态的常量
 BLOCK_STATUS_VALID = 1  # 表示区块头和内容都已完全验证

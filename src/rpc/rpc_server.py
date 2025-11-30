@@ -15,7 +15,7 @@ from core.transaction import Transaction,TxIn,TxOut
 from mempool.mempool import Mempool
 from indexer.model import AddressUTXO, BlockInfo, TransactionInfo, AddressTransaction
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
-
+from rpc.claim_api import ClaimAPI
 log = logging.getLogger(__name__)
 
 class RawTx(BaseModel):
@@ -45,7 +45,10 @@ class RpcServer:
         # 首页聚合数据缓存
         self._index_data_cache = None
         self._index_data_cache_time = 0
+        claim_api = ClaimAPI(self.db,self.mempool,self.blockchain)
+        # claim_api.setup_claim_api_dependencies(self.db,self.mempool,self.blockchain)
 
+        self.app.include_router(claim_api.router)
         # 首页聚合接口
         @self.app_router.get("/index/data")
         async def get_index_data():
@@ -423,6 +426,7 @@ class RpcServer:
 
     async def run(self):
         self.app.include_router(self.app_router)
+
         config = uvicorn.Config(self.app, host="0.0.0.0", port=self.port, log_level="info")
         server = uvicorn.Server(config)
         log.info(f"RPC server started on http://0.0.0.0:{self.port}")

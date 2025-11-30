@@ -144,7 +144,7 @@ class PeerManager:
         except asyncio.TimeoutError:
             raise Exception(f"Request {request_id} ({msgtype}) timed out")
         finally:
-            self.pending_requests.pop(request_id, None)
+            await self.pending_requests.pop(request_id, None)
 
     def resolve_request(self, response_message: dict) -> bool:
         """由 ProtocolHandler 调用，检查消息是否是响应"""

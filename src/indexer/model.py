@@ -85,3 +85,25 @@ class AddressTransaction(Base):
     # 新增字段，仅对 role='input' 有意义，用于追踪资金来源
     prev_tx_hash = Column(TEXT, index=True)
     prev_tx_out_index = Column(Integer)
+
+
+class ExplorerClaimHistory(Base):
+    """
+    用于记录水龙头认领历史的表。
+    """
+    __tablename__ = 'explorer_claim_history'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 认领者的IP地址
+    ip_address = Column(TEXT, nullable=False, index=True)
+
+    # 接收代币的钱包地址
+    recv_address = Column(TEXT, nullable=False, index=True)
+    # 成功认领的时间戳
+    timestamp = Column(Integer, nullable=False, index=True)
+    # 成功发送代币的交易哈希
+    tx_hash = Column(TEXT, nullable=False)
+
+    # 发送的金额 (tinyalt)
+    amount = Column(BIGINT, nullable=False)

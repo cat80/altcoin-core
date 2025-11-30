@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 def load_test_app_config(port):
     return {
         'p2p': {
-            "data_dir": f"/mnt/d/prj/web3/altcoin-core/nodes-data/node-tmp-{port}",
+            "data_dir": f"/mnt/d/prj/web3/altcoin-core/nodes-data/node{port}",
             "rpc_port": 8000 + port % 100, # 为每个节点分配一个RPC端口
             "listen_port": port,
             # "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",
@@ -109,14 +109,13 @@ async def main():
     )
     #启动索引器检查
     asyncio.create_task(block_indexer.on_block_validate(None))
-    # await block_indexer.on_block_validate(None)
+    await block_indexer.on_block_validate(None)
     miner = Miner(
         event_bus=event_bus,
         blockchain=blockchain,
         mempool=mempool,
         coinbase_address=my_coinbase_address
     )
-
     # 启动命令检查
     PeerCmdHandler(blockchain,peer_manager,event_bus,address_manager,miner)
 
