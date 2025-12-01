@@ -12,7 +12,9 @@ class Wallet:
     它内部管理一个私钥及其对应的公钥和地址，并提供创建、加载、
     保存和使用钱包的便捷方法。
     """
-
+    @staticmethod
+    def is_valid_wallet_address(address):
+        return crypto.is_validate_address(address)
     def __init__(self, private_key: ecdsa.SigningKey):
         """
         初始化一个钱包实例。

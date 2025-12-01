@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()  # load env
 
 from core.blockchain import Blockchain
 from p2p.event_bus import EventBus
@@ -15,8 +17,10 @@ from bootstrap import setup_node
 from storage.sql_alchemy_wrapper import SQLAlchemyWrapper
 from p2p.address_manager import AddressManager
 from p2p.peer_cmd_handler import PeerCmdHandler
+from  p2p.synchronizer import Synchronizer
 log = logging.getLogger(__name__)
-
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import Manager
 
 def load_test_app_config(port):
     return {
@@ -33,7 +37,7 @@ def load_test_app_config(port):
     }
 
 
-async def main():
+async def main(executor: ProcessPoolExecutor, stop_event):
     # 第一步：加载日志和应用配置
 
     listen_port = 17890
@@ -91,13 +95,17 @@ async def main():
     address_manager.get_active_node_ids = peer_manager.get_active_node_ids
 
     # --- 依赖注入完成 ---
-
+    # 区块同步器
+    synchronizer =  Synchronizer(
+         blockchain,peer_manager,event_bus
+    )
     protocol_handler = ProtocolHandler(
         event_bus=event_bus,
         blockchain=blockchain,
         peer_manager=peer_manager,
         mempool=mempool,
-        address_manager=address_manager
+        address_manager=address_manager,
+        synchronizer=synchronizer
     )
 
     # 必须在 ProtocolHandler 之后初始化，因为它依赖于 'reorganization_detected' 事件
@@ -110,12 +118,17 @@ async def main():
     #启动索引器检查
     asyncio.create_task(block_indexer.on_block_validate(None))
     await block_indexer.on_block_validate(None)
+    # 使用进程池挖矿，避免eventloop阻塞
+
     miner = Miner(
         event_bus=event_bus,
         blockchain=blockchain,
         mempool=mempool,
-        coinbase_address=my_coinbase_address
+        coinbase_address=my_coinbase_address,
+        executor=executor,
+        stop_event=stop_event
     )
+
     # 启动命令检查
     PeerCmdHandler(blockchain,peer_manager,event_bus,address_manager,miner)
 
@@ -139,4 +152,15 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # 4. 将所有多进程初始化代码放在这里
+    with Manager() as manager:
+        executor = ProcessPoolExecutor(max_workers=1)
+        stop_mining_event = manager.Event()
+
+        try:
+            asyncio.run(main(executor, stop_mining_event))  # <--- 5. 将依赖项传入
+        finally:
+            # 6. 在最外层进行清理
+            log.info("正在关闭挖矿进程池和管理器...")
+            executor.shutdown()
+            manager.shutdown()

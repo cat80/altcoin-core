@@ -47,6 +47,16 @@ class PeerCmdHandler:
         log.info(f'广播消息:{cmd_arr[2]}')
         await self.peer_manager.broadcast("manbc",{"msg":cmd_arr[2]})
 
+    async def cmd_p2p_bc1(self,txt):
+        """
+            p2p广播
+        :param txt:
+        :return:
+        """
+        cmd_arr =self.input_text_to_arr(txt,3)
+        log.info(f'广播消息:{cmd_arr[2]}')
+        await self.peer_manager.broadcast("manbc1",{"msg":cmd_arr[2]})
+
     async def cmd_p2p_info(self,txt):
         """
             p2p连接信息

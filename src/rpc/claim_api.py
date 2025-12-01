@@ -47,7 +47,7 @@ class ClaimAPI:
         log.info(f"Faucet feature loaded, sending address: {self.wallet.get_address()}")
 
         # 4. 创建并设置路由
-        self.router = APIRouter(prefix='/claim')
+        self.router = APIRouter(prefix='/rpc/claim')
         self._setup_routes()
 
     def _setup_routes(self):
@@ -58,7 +58,11 @@ class ClaimAPI:
         @self.router.post("/claimcoin")
         async def claim_coin(req: ClaimRequest, request: Request):
             client_ip = request.client.host
-
+            if not Wallet.is_valid_wallet_address(req.address):
+                return  {
+                    "status":"fail",
+                    "detail":"Claim wallet address is not valid.Please input correct wallet address or selected default wallet address."
+                }
             with self.db.get_session() as session:
                 ip_claim_count = session.query(ExplorerClaimHistory).filter(
                     ExplorerClaimHistory.ip_address == client_ip,

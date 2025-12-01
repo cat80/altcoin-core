@@ -52,7 +52,7 @@ class RpcServer:
         # 首页聚合接口
         @self.app_router.get("/index/data")
         async def get_index_data():
-            if self._index_data_cache and (time.time() - self._index_data_cache_time < 60):
+            if self._index_data_cache and (time.time() - self._index_data_cache_time < 5):
                 log.debug("Returning cached index data.")
                 return self._index_data_cache
 

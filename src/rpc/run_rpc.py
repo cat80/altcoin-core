@@ -1,9 +1,11 @@
 import logging
 import os
 import asyncio
-
+from dotenv import load_dotenv
 # 导入你封装好的 RpcServer 类
 from rpc.rpc_server import RpcServer
+
+load_dotenv()
 
 # 导入需要注入的核心组件
 from core.blockchain import Blockchain
@@ -20,7 +22,7 @@ log = logging.getLogger(__name__)
 # 使用与集成测试相同的节点数据目录
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "nodes-data", "node17880"))
 INDEXER_DB_PATH = os.path.join(DATA_DIR, "indexer.db")
-RPC_PORT = 8332
+RPC_PORT = 8082
 async def main():
     """
     初始化所有依赖项并启动 RpcServer。

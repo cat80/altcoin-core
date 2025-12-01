@@ -3,7 +3,8 @@ import logging
 import threading
 from typing import Optional
 import random
-
+from multiprocessing import Event as ProcessEvent
+from concurrent.futures import ProcessPoolExecutor
 from core.blockchain import Blockchain
 from utils import MerkleTree
 from core import BlockHeader,BlockValidator,Transaction,TxIn,TxOut,Block
@@ -11,12 +12,33 @@ from mempool.mempool import Mempool
 from p2p.event_bus import EventBus
 import time
 import dataclasses
-
+from multiprocessing.managers import SyncManager
 log = logging.getLogger(__name__)
 
+
+def do_mining_cpu_loop(block: Block, event: ProcessEvent):
+    """
+        这里是真实开启挖矿
+    :param block:
+    :param event:
+    :return:
+    """
+    log.debug(f'[挖矿线程]开始挖矿,prev block{block.header.prev_block_hash.hex()}')
+    header = block.header
+    target = BlockValidator.bits_to_target(header.bits)
+
+    while int.from_bytes(header.hash(), 'big') >= target:
+        if header.nonce % 100000 == 0:
+            if event.is_set():
+                log.debug('[挖矿线程]收到中止挖矿通知,退出挖矿...')
+                return None
+        header = dataclasses.replace(header, nonce=header.nonce + 1)
+
+    log.debug(f'[挖矿线程] 找到新的区块，区块hash:{header.hash().hex()},nonce:{header.nonce} ')
+    return header.nonce
 class Miner:
     def __init__(self, event_bus: EventBus, blockchain: Blockchain,
-                 mempool: Mempool, coinbase_address: str):
+                 mempool: Mempool, coinbase_address: str,executor:ProcessPoolExecutor,stop_event:SyncManager):
         self.event_bus = event_bus
         self.blockchain = blockchain
         self.mempool = mempool
@@ -26,14 +48,14 @@ class Miner:
         self.mining_lock = asyncio.Lock()
         self.extra_nonce = 0
         self.is_syncing = False
-
+        self.executor = executor
         # 订阅事件
         self.event_bus.subscribe('block_validated', self.update_mining_state)
         self.event_bus.subscribe('new_transaction_received', self.update_mining_state)
         self.event_bus.subscribe('sync_started', self.on_sync_started)
         self.event_bus.subscribe('sync_finished', self.on_sync_finished)
         
-        self.stop_mining_event = threading.Event()
+        self.stop_mining_event = stop_event
         asyncio.create_task(self.update_mining_state())
 
     async def on_sync_started(self, *args):
@@ -96,7 +118,8 @@ class Miner:
         )
 
         block =  Block(header, transactions)
-        find_nonce = await asyncio.to_thread(Miner.__do_minning_cpu_loop,block,self.stop_mining_event)
+        loop = asyncio.get_running_loop()
+        find_nonce = await loop.run_in_executor(self.executor, do_mining_cpu_loop,block,self.stop_mining_event)
         if find_nonce:
             block.header = dataclasses.replace(block.header,nonce=find_nonce)
             return Block(block.header,transactions)
@@ -118,11 +141,14 @@ class Miner:
 
             if new_block:
                 log.info('挖矿成功，尝试增加到本地主链')
-                if self.blockchain.add_block(block=new_block):
+                add_success = await asyncio.to_thread(self.blockchain.add_block, new_block)
+
+                if add_success:
                     log.info("本地主链增加成功")
                     best_tip = self.blockchain.get_best_tip()
                     # --- 修复：使用 asyncio.create_task 避免死锁 ---
                     asyncio.create_task(self.event_bus.publish("block_validated", best_tip))
+                    await asyncio.sleep(1)
                 else:
                     log.info('本地主链增加失败，可能因为链已更新，等待下一次挖矿信号。')
             else:
@@ -133,25 +159,5 @@ class Miner:
         except Exception as e:
             log.debug("挖矿循环出错:", exc_info=True)
             log.error(f"挖矿循环错误: {e}")
-
-    @staticmethod
-    def __do_minning_cpu_loop(block:Block,event:threading.Event):
-        """
-            这里是真实开启挖矿
-        :param block:
-        :param event:
-        :return:
-        """
-        log.debug(f'[挖矿线程]开始挖矿,prev block{block.header.prev_block_hash.hex()}')
-        header = block.header
-        target = BlockValidator.bits_to_target(header.bits)
-
-        while int.from_bytes(header.hash(), 'big') >= target:
-            if header.nonce % 100000 == 0:
-                if event.is_set():
-                    log.debug('[挖矿线程]收到中止挖矿通知,退出挖矿...')
-                    return None
-            header = dataclasses.replace(header, nonce=header.nonce + 1)
-            
-        log.debug(f'[挖矿线程] 找到新的区块，区块hash:{header.hash().hex()},nonce:{header.nonce} ')
-        return header.nonce
+        finally:
+            await asyncio.sleep(0)

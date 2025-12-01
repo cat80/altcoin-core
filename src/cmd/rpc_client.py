@@ -74,3 +74,6 @@ class RpcClient:
 
     def get_utxo_info(self,tx_hash,index):
         return  self.make_rpc_request("GET",endpoint=f'/utxo/{tx_hash}/{index}')
+
+    def get_claim_wallets(self):
+        return self.make_rpc_request('GET',endpoint='')
