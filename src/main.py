@@ -25,7 +25,7 @@ from multiprocessing import Manager
 def load_test_app_config(port):
     return {
         'p2p': {
-            "data_dir": f"~/data/altcoin/nodes-data/node{port}",
+            "data_dir": os.path.expanduser( f"~/data/altcoin/nodes-data/node{port}"),
             "rpc_port": 8000 + port % 100, # 为每个节点分配一个RPC端口
             "listen_port": port,
             # "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",

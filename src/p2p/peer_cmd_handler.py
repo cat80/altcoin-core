@@ -117,5 +117,7 @@ class PeerCmdHandler:
                 txt_arr =self.input_text_to_arr(input_txt,3)
                 cmd_invoke_method = getattr(self,f"cmd_{txt_arr[0]}_{txt_arr[1]}",self.cmd_unknwn)
                 await cmd_invoke_method(input_txt)
+            except EOFError:
+                log.info("标准输入 (stdin) 已关闭或重定向，退出命令处理循环。")
             except Exception as e:
                 log.debug("命令执行出错",exc_info=True)
