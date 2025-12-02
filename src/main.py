@@ -30,8 +30,9 @@ def load_test_app_config(port):
             "listen_port": port,
             # "coinbase_address": "12T36cYGFN8yZqpDX3w5e8HucsEpfPDGsb",
             "peer_nodes": [
-                {"host": "127.0.0.1", "port": 17890,"node_id":"17890"},
-                {"host": "127.0.0.1", "port": 17880, "node_id": "17880"}
+                {"host": "node1.altcoin.host", "port": 17890,"node_id":"node1.altcoin.host"},
+                {"host": "node2.altcoin.host", "port": 17890, "node_id": "node2.altcoin.host"},
+                {"local": "local.altcoin.host", "port": 17890, "node_id": "local.altcoin.host"},
             ]
         }
     }
