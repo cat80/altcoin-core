@@ -119,5 +119,6 @@ class PeerCmdHandler:
                 await cmd_invoke_method(input_txt)
             except EOFError:
                 log.info("标准输入 (stdin) 已关闭或重定向，退出命令处理循环。")
+                break
             except Exception as e:
                 log.debug("命令执行出错",exc_info=True)

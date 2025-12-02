@@ -131,7 +131,8 @@ async def main(executor: ProcessPoolExecutor, stop_event):
     )
 
     # 启动命令检查
-    PeerCmdHandler(blockchain,peer_manager,event_bus,address_manager,miner)
+    if os.isatty(sys.stdin.fileno()):
+        PeerCmdHandler(blockchain,peer_manager,event_bus,address_manager,miner)
 
     from rpc.rpc_server import RpcServer
     rpc_server = RpcServer(
@@ -154,6 +155,8 @@ async def main(executor: ProcessPoolExecutor, stop_event):
 
 if __name__ == "__main__":
     # 4. 将所有多进程初始化代码放在这里
+    # fast startup cmd
+    # nohup python src/main.py port > ~/logs/nodes17890.log 2>&1 &
     with Manager() as manager:
         executor = ProcessPoolExecutor(max_workers=1)
         stop_mining_event = manager.Event()

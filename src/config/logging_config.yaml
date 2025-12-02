@@ -25,7 +25,7 @@ handlers:
 
 root:
   level: DEBUG # Root 级别设为 DEBUG, 让 handlers 去精细控制
-  handlers: [console, file]
+  handlers: [ file]
 
 loggers:
   # 让第三方库安静点
